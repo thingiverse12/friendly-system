@@ -101,3 +101,5 @@ konfigurerad i demomiljön, så konton aktiveras direkt), `password_min_length =
 * **Deployment Protection.** Vercel-projekt skapas med "Vercel Authentication" för alla deployment
   utom egna domäner. Ser appen ut att kräva Vercel-inloggning: stäng av det under
   *Project → Settings → Deployment Protection*.
+
+<!-- deploy-probe: pooler host verification in progress -->
