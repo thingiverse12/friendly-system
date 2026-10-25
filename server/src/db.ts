@@ -78,9 +78,10 @@ const transactionScope = new AsyncLocalStorage<Db>();
 function scopeAware(db: Db): Db {
   const resolve = (): Db => {
     const active = transactionScope.getStore();
-    return active && active !== db ? active : db;
+    if (!active || active === wrapper) return db;
+    return active;
   };
-  return {
+  const wrapper: Db = {
     query: (sql, params) => resolve().query(sql, params),
     one: (sql, params) => resolve().one(sql, params),
     run: (sql, params) => resolve().run(sql, params),
@@ -89,6 +90,7 @@ function scopeAware(db: Db): Db {
     tx: (fn) => resolve().tx(fn),
     close: () => db.close(),
   };
+  return wrapper;
 }
 
 function fromPg(target: PgLike, insideTransaction: boolean): Db {
