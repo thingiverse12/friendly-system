@@ -62,26 +62,38 @@ describe('18. The application works on mobile and desktop (static + delivery che
     expect(fs.readFileSync(path.join(root, 'web/src/components/UI.tsx'), 'utf8')).toContain('empty-state__mascot');
   });
 
-  it('animates the tail wag with pre-drawn frames that share one crop', () => {
+  it('animates the tail as a separate layer rotating around the hip', () => {
     const component = fs.readFileSync(path.join(root, 'web/src/components/Mascot.tsx'), 'utf8');
-    expect(component).toContain("variant = 'full'");
+
+    // The animated variant is body + tail, both cut from the same 992x1079 drawing.
     expect(component).toContain("'animated'");
-
-    const frames = [...component.matchAll(/\/mascot\/hund-vift-(\d)\.png/g)].map((match) => match[1]);
-    expect(frames).toEqual(['1', '2', '3']);
-
-    // All frames must be identical in size, otherwise the dog would jump when the frame switches.
-    const sizes = frames.map((frame) => {
-      const buffer = fs.readFileSync(path.join(root, 'web/public/mascot', `hund-vift-${frame}.png`));
-      return `${buffer.readUInt32BE(16)}x${buffer.readUInt32BE(20)}`;
-    });
-    expect(new Set(sizes).size).toBe(1);
+    expect(component).toContain('/mascot/hund-kropp.png');
+    expect(component).toContain('/mascot/hund-svans.png');
+    expect(component).toContain('transformOrigin');
+    // The tail must be drawn *behind* the body so the seam at the hip is never visible.
+    const bodyIndex = component.indexOf('mascot__body');
+    const tailIndex = component.indexOf('mascot__tail');
+    expect(tailIndex).toBeGreaterThan(-1);
+    expect(bodyIndex).toBeGreaterThan(tailIndex);
 
     const styles = fs.readFileSync(path.join(root, 'web/src/styles.css'), 'utf8');
+    const body = styles.match(/\.mascot__body\s*\{[^}]*z-index:\s*(\d+)/);
+    const tail = styles.match(/\.mascot__tail\s*\{[^}]*z-index:\s*(\d+)/);
+    expect(body && tail, 'both layers need a stacking order').toBeTruthy();
+    expect(Number(body![1])).toBeGreaterThan(Number(tail![1]));
+
+    // A continuous rotation (not stepped keyframes) is what keeps the motion smooth.
     expect(styles).toContain('@keyframes mascot-wag');
-    expect(styles).toContain('.mascot__wag-frame');
-    // Reduced motion must freeze the wag on a happy frame rather than flashing.
-    expect(styles).toMatch(/prefers-reduced-motion[\s\S]*\.mascot__wag-frame\s*\{\s*animation:\s*none/);
+    expect(styles).toMatch(/@keyframes mascot-wag\s*\{[^}]*transform:\s*rotate\(-?[\d.]+deg\)/);
+    expect(styles).not.toContain('steps(');
+    expect(styles).toMatch(/prefers-reduced-motion[\s\S]*\.mascot__tail\s*\{\s*animation:\s*none/);
+
+    // Both layers must exist and be small enough to load quickly.
+    for (const file of ['hund-kropp.png', 'hund-svans.png']) {
+      const buffer = fs.readFileSync(path.join(root, 'web/public/mascot', file));
+      expect(buffer.subarray(1, 4).toString(), file).toBe('PNG');
+      expect(buffer.length, file).toBeLessThan(300_000);
+    }
   });
 
   it('serves the built SPA for deep links so mobile browsers can reload any tab', async () => {

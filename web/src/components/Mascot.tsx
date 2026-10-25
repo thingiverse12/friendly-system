@@ -4,12 +4,11 @@
  * Tecknad efter en strävhårig salt-och-peppar-hund: lurviga ögonbryn, skägg, stor svart nos,
  * hängande öron och en mungipa som dras snett uppåt åt sidan så att han ser glad och lite busig ut.
  *
- * `variant="animated"` är tre separat tecknade bilder av exakt samma hund där bara svansen sitter i
- * olika läge (upp / mitt / ner). De växlas i tur och ordning, vilket ger en riktig svansviftning i
- * stället för att hela hunden studsar. Alla tre bilderna har samma beskärning, så inget hoppar.
- *
- * Bilderna är förrenderade i flera storlekar så att mobilen aldrig laddar en 640 px-bild för att
- * visa en 64 px-avatar.
+ * `variant="animated"` ritar hunden i två lager: kroppen (utan svans) och svansen för sig. Svansen
+ * roterar kring sin fästpunkt i höften med en vanlig CSS-rotation, vilket ger en mjuk, kontinuerlig
+ * viftning – inga bildrutor som hoppar – och den ligger *bakom* kroppen så att fogen alltid döljs.
+ * Båda lagren är ritade på samma canvas (992 × 1079), så positionerna nedan är exakta andelar av
+ * den ytan och stämmer i alla storlekar.
  */
 export type MascotVariant = 'full' | 'face' | 'animated';
 
@@ -28,14 +27,20 @@ const STILL = {
   },
 } as const;
 
-/** The three wag frames share one crop, so switching between them never shifts the dog. */
-const WAG = [
-  { src: '/mascot/hund-vift-1.png', label: 'Svansen upp' },
-  { src: '/mascot/hund-vift-2.png', label: 'Svansen mitt' },
-  { src: '/mascot/hund-vift-3.png', label: 'Svansen ner' },
-] as const;
-const WAG_WIDTH = 420;
-const WAG_HEIGHT = 457;
+/**
+ * The animated figure is drawn on a 992 × 1079 canvas. The tail occupies the box at (767, 302) and
+ * is 225 × 661; its rotation origin is the point (15, 583) inside the tail, i.e. the hip.
+ */
+const CANVAS = { width: 992, height: 1079 } as const;
+const TAIL = {
+  left: 767 / CANVAS.width,
+  top: 302 / CANVAS.height,
+  width: 225 / CANVAS.width,
+  originX: 15 / 225,
+  originY: 583 / 661,
+} as const;
+
+const pct = (value: number): string => `${(value * 100).toFixed(3)}%`;
 
 export function Mascot({
   size = 140,
@@ -56,7 +61,7 @@ export function Mascot({
   const ariaHidden = decorative ? 'true' : undefined;
 
   if (variant === 'animated') {
-    const height = Math.round((size * WAG_HEIGHT) / WAG_WIDTH);
+    const height = Math.round((size * CANVAS.height) / CANVAS.width);
     return (
       <span
         className={`${classes} mascot__wag`}
@@ -65,20 +70,32 @@ export function Mascot({
         aria-label={decorative ? undefined : title}
         aria-hidden={ariaHidden}
       >
-        {WAG.map((frame, index) => (
-          <img
-            key={frame.src}
-            className="mascot__wag-frame"
-            src={frame.src}
-            width={WAG_WIDTH}
-            height={WAG_HEIGHT}
-            alt=""
-            aria-hidden="true"
-            style={{ animationDelay: `${index * 0.2}s` }}
-            decoding="async"
-            draggable={false}
-          />
-        ))}
+        <img
+          className="mascot__tail"
+          src="/mascot/hund-svans.png"
+          width={225}
+          height={661}
+          alt=""
+          aria-hidden="true"
+          decoding="async"
+          draggable={false}
+          style={{
+            left: pct(TAIL.left),
+            top: pct(TAIL.top),
+            width: pct(TAIL.width),
+            transformOrigin: `${pct(TAIL.originX)} ${pct(TAIL.originY)}`,
+          }}
+        />
+        <img
+          className="mascot__body"
+          src="/mascot/hund-kropp.png"
+          width={CANVAS.width}
+          height={CANVAS.height}
+          alt=""
+          aria-hidden="true"
+          decoding="async"
+          draggable={false}
+        />
       </span>
     );
   }

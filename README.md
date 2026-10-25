@@ -428,16 +428,21 @@ downloads the 640 px artwork:
 | File | Used for |
 | --- | --- |
 | `hund.png` (640 px) + `-128`, `-256`, `-320` | `<Mascot variant="full" />`, `srcSet`-driven |
-| `hund-vift-1/2/3.png` (420×457, identical crop) | `<Mascot variant="animated" />` — the tail-wag frames |
+| `hund-kropp.png` + `hund-svans.png` (same 992×1079 canvas) | `<Mascot variant="animated" />` — body and tail as separate layers |
 | `hund-ansikte.png` | `<Mascot variant="face" />` — portraits in empty states and the 404 page |
 | `hund-ikon-192/512`, `hund-ikon-maskable-512`, `hund-ikon-180` | web app manifest + `apple-touch-icon` (add to home screen) |
 
-**The wag.** The dog is drawn three times — tail up, tail middle, tail down — on an identical
-canvas, so switching frames moves the tail and nothing else. `variant="animated"` stacks the three
-images and lets them take turns being visible (`@keyframes mascot-wag`, three steps, 0.6 s per
-cycle). With `prefers-reduced-motion: reduce` the animation is turned off and the middle frame stays,
-so the dog is still there and still happy. `web/public/maskot-demo.html` is a static preview of the
-frames at normal and slow speed.
+**The wag.** The tail is a **separate layer**: `hund-kropp.png` is the dog without a tail and
+`hund-svans.png` is the tail alone, both cut from the same 992 × 1079 drawing, so their positions
+are exact fractions of that canvas (`Mascot.tsx` derives `left`/`top`/`width`/`transform-origin`
+from those numbers). The tail rotates around the point where it meets the hip and sits *behind* the
+body (z-index 1 vs 2), so the joint is always covered. The motion is one continuous CSS rotation
+(`transform: rotate(-11deg)` → `rotate(11deg)`, 1.15 s, `alternate` with an ease-in-out curve) —
+**not** a sequence of frames, which is what made the earlier version look choppy.
+
+With `prefers-reduced-motion: reduce` the animation is off and the tail rests six degrees up, so the
+dog still looks cheerful. `web/public/maskot-demo.html` shows the real animation at normal speed, at
+3 s, on the dark hero background, with reduced motion, and in three sizes.
 
 `web/src/components/Mascot.tsx` is the only place that knows the file names. It appears on the
 login/registration screen (hero, bottom right on desktop, above the copy on mobile), as a small

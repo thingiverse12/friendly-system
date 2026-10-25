@@ -1642,9 +1642,9 @@ ol {
 }
 
 /*
- * Svansviftningen: tre tecknade bilder av samma hund där bara svansen sitter olika högt.
- * De ligger staplade på varandra och släcks/tänds i tur och ordning, 0,6 s per varv.
- * Bilderna delar exakt samma beskärning, så bara svansen rör sig.
+ * Svansviftningen: kroppen och svansen är två lager på samma canvas. Svansen roterar kring
+ * fästpunkten i höften (transform-origin sätts inline i Mascot.tsx) och ligger bakom kroppen,
+ * så fogen syns aldrig. En mjuk pendelrörelse, inga bildbyten.
  */
 .mascot__wag {
   position: relative;
@@ -1652,29 +1652,32 @@ ol {
   flex: 0 0 auto;
 }
 
-.mascot__wag-frame {
-  position: absolute;
-  inset: 0;
+.mascot__body {
+  position: relative;
+  z-index: 2;
+  display: block;
   width: 100%;
-  height: 100%;
-  opacity: 0;
-  animation: mascot-wag 0.6s steps(1, end) infinite;
+  height: auto;
   user-select: none;
   -webkit-user-drag: none;
 }
 
-.mascot__wag-frame:first-child {
-  position: relative;
+.mascot__tail {
+  position: absolute;
+  z-index: 1;
+  height: auto;
+  animation: mascot-wag 1.15s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  user-select: none;
+  -webkit-user-drag: none;
+  will-change: transform;
 }
 
 @keyframes mascot-wag {
-  0%,
-  33.32% {
-    opacity: 1;
+  from {
+    transform: rotate(-11deg);
   }
-  33.33%,
-  100% {
-    opacity: 0;
+  to {
+    transform: rotate(11deg);
   }
 }
 
@@ -1784,13 +1787,9 @@ ol {
     animation: none;
   }
 
-  /* With motion turned off the dog keeps the middle frame, still visibly happy. */
-  .mascot__wag-frame {
+  /* With motion turned off the tail rests slightly raised, still visibly cheerful. */
+  .mascot__tail {
     animation: none;
-    opacity: 0;
-  }
-
-  .mascot__wag-frame:nth-child(2) {
-    opacity: 1;
+    transform: rotate(6deg);
   }
 }
