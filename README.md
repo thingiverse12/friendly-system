@@ -8,6 +8,9 @@ restrained gold for achievements), server-rendered truth.
 > for login · **Supabase Postgres** for all application data. No Lovable, no mock data, no
 > frontend-only storage: every account, balance, competition result and permission lives in Postgres
 > and is authorised on the server for every request.
+>
+> **Live app:** https://sparly-zeta.vercel.app · **health:** https://sparly-zeta.vercel.app/api/health
+> · migration/deployment report: [`docs/supabase-vercel.md`](docs/supabase-vercel.md)
 
 ## 1. What is included
 

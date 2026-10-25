@@ -27,7 +27,7 @@ export function translateAuthError(message: string): string {
   if (text.includes('invalid login credentials')) return 'E-post eller lösenord stämmer inte.';
   if (text.includes('email not confirmed')) return 'Bekräfta din e-postadress innan du loggar in.';
   if (text.includes('user already registered')) return 'Det finns redan ett konto med den e-postadressen.';
-  if (text.includes('password should be at least')) return 'Lösenordet är för kort. Använd minst 10 tecken.';
+  if (text.includes('password should be at least')) return 'Lösenordet är för kort. Använd minst 8 tecken.';
   if (text.includes('rate limit') || text.includes('too many')) return 'För många försök. Vänta en stund och försök igen.';
   if (text.includes('duplicate key') || text.includes('already registered')) return 'Det finns redan ett konto med den e-postadressen.';
   if (text.includes('database error')) return 'Kontot kunde inte skapas just nu. Försök igen.';

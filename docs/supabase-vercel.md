@@ -1,81 +1,103 @@
-# Vägen till Supabase + Vercel
+# Supabase + Vercel — genomförd migrering
 
-Detta dokument beskriver migreringen från den självhostade SQLite-versionen till
-**Supabase Auth + Supabase Postgres + Vercel**. Det är ett medvetet tvåstegsarbete eftersom
-appen som ligger i `main`/preview är grön och testad (38/38) och inte får gå sönder under vägen.
+Sparly kör nu på **Supabase Auth** (inloggning), **Supabase Postgres** (all data) och **Vercel**
+(publicering). Det här dokumentet beskriver vad som faktiskt är gjort, varför, och exakt vad som är
+verifierat — och vad som inte kunnat verifieras från arbetsmiljön.
+
+## Publika adresser
+
+| Tjänst | Adress |
+| --- | --- |
+| App (produktion) | https://sparly-zeta.vercel.app |
+| API-hälsokontroll | https://sparly-zeta.vercel.app/api/health |
+| Vercel-projekt | `sparly` (`prj_P7NmKgeaKNRlFw2W0nJXeJ2eQtMQ`), team `vinciel-8425s-projects` |
+| Supabase-projekt | `sparly`, ref `bwvgajaihcdmhaawwojp`, region `eu-north-1` |
+| GitHub | `thingiverse12/friendly-system`, gren `arena/bc9a18a0-friendly-system` |
 
 ## Status
 
 | Del | Status |
 | --- | --- |
-| Supabase-projekt | **Klart** — `sparly`, ref `bwvgajaihcdmhaawwojp`, region `eu-north-1`, Postgres 17 |
-| Postgres-schema | **Klart och verifierat** i `server/src/pg/migrations.ts` (körs av `npm run check:schema` mot en inbäddad Postgres) |
-| Databasanslutning i appen | **Kvar** — `server/src/db.ts` portas från `better-sqlite3` (synkron) till asynkron Postgres |
-| Supabase Auth i appen | **Kvar** — kräver att datalagret är asynkront först (tokenutbyte skapar en användarrad) |
-| Publicering på Vercel | **Kvar** — ett serverlöst API kan inte använda en lokal SQLite-fil, därför är datalagret en förutsättning |
+| Postgres-schema | **Klart** — 6 migreringar i `server/src/pg/migrations.ts`, applicerade på Supabase och registrerade i `schema_migrations` (001–006) |
+| Datalager i appen | **Klart** — `pg` i produktion, PGlite i test; all SQL är Postgres |
+| Supabase Auth | **Klart** — `POST /api/auth/session` verifierar access-token mot `/auth/v1/user` och utfärdar appens egen server-session |
+| Kontoradering | **Klart** — appens data först, Supabase Auth-användaren sist (service-role, endast server-side) |
+| Publicering | **Klart** — Vercel-funktion `api/[...path].js` + statisk Vite-build, produktionsdomän tilldelad |
+| Tester | **38/38 gröna** mot PGlite (Postgres i WebAssembly) med testidentitetsprovider |
 
-## Varför datalagret måste först
+## 1. Databasen
 
-Vercel kör API:t som serverlösa funktioner. Filsystemet är skrivskyddat utom `/tmp`, som töms vid
-kallstart. En SQLite-fil kan därför inte vara auktoritativ för sparande på Vercel. Data måste ligga i
-Supabase Postgres, och eftersom `better-sqlite3` är synkront medan Postgres är asynkront måste
-service-lagret skrivas om. Schemat, reglerna och SQL:en är oförändrade — det är anropen som får
-`await`.
+Migreringarna ligger kvar i kod (`server/src/pg/migrations.ts`) och körs automatiskt vid serverstart
+och vid Vercels kallstart. På Supabase-projektet applicerades exakt samma SQL som en migration
+(`sparly_initial_schema`) och `schema_migrations` fylldes med 001–006, så appens `migrate()` är en
+no-op men kan fortfarande lägga till nya migreringar senare.
 
-## Steg 1 — datalager (Postgres)
+Samma skydd som tidigare, nu som `plpgsql`-triggers:
 
-1. `server/src/db.ts` får ett `Db`-gränssnitt med `query/one/run/exec/tx`. Två implementationer:
-   `pg` (Supabase Postgres i produktion) och PGlite (samma Postgres-motor, in-process, för
-   utveckling och tester). Ingen SQLite kvar.
-2. Alla services (`accounts`, `sessions`, `goals`, `transactions`, `achievements`, `competitions`,
-   `groups`, `dashboard`) blir asynkrona. SQL:en portas mekaniskt: `?` → `$n`,
-   `INSERT OR IGNORE` → `ON CONFLICT DO NOTHING`, `rowid` → `created_at DESC, id DESC`,
-   `strftime` → `left(occurred_at, 7)`.
-3. `migrations.ts` ersätts av `pg/migrations.ts` (redan skrivet). Migreringar körs vid start och
-   spåras i `schema_migrations`.
-4. Testerna flyttas till PGlite. Samma 38 scenarier ska fortsätta vara gröna, nu mot Postgres.
+* `savings_ledger_append_only` — huvudboken kan inte skrivas över.
+* `goal_owner_mismatch` — en transaktion kan inte peka på någon annans sparmål.
+* `locked_snapshot_immutable`, `final_score_immutable`, `competition_finalised` — frysta
+  tävlingsögonblick och slutresultat kan inte ändras.
 
-## Steg 2 — Supabase Auth
+Nytt i porten: `seq BIGINT IDENTITY` på `savings_goals`, `transactions` och `savings_movements` så att
+listordningen är deterministisk även när två rader har samma tidsstämpel (testklockan kan frysa tiden),
+samt att alla `AS "camelCase"`-alias är citatteckenomslutna eftersom Postgres annars viker dem till gemener.
 
-1. `POST /api/auth/session` tar en Supabase-access-token, verifierar den mot
-   `GET /auth/v1/user` (med anon-nyckeln) och skapar en serversidig session för appens egna
-   endpoints. Verifieraren är injicerbar så att testerna kan köra utan nätverk.
-2. Användarraden skapas vid första inloggningen med Supabase `sub` (UUID) som `users.id`; alias,
-   samtycke och integritetsval ligger kvar i appens `profiles`.
-3. Registrering, inloggning, lösenordsåterställning och lösenordsbyte sker i webbläsaren via
-   `@supabase/supabase-js`. Servern lagrar aldrig lösenord.
-4. Kontoradering raderar appens data i en transaktion och därefter auth-användaren via
-   Admin-API:t med service-role-nyckeln (endast server-side).
-5. Auth-inställningar: `mailer_autoconfirm = true` (ingen SMTP i demomiljön), `password_min_length = 10`,
-   `site_url` = produktionsdomänen, `uri_allow_list` = återställnings-URL:er.
+Anslutningssträng: **Supavisor transaction pooler** (`aws-1-eu-north-1.pooler.supabase.com:6543`).
+Direktanslutningen `db.<ref>.supabase.co` är IPv6-only och fungerar inte från serverlösa miljöer.
 
-## Steg 3 — Vercel
+## 2. Inloggningen (Supabase Auth)
 
-1. `api/index.js` exporterar Express-appen som en serverlös funktion; `vercel.json` routar
-   `/api/*` dit och låter övriga vägar servera den statiska Vite-byggen.
-2. Miljövariabler: `DATABASE_URL` (Supabase pooler), `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
-   `SUPABASE_SERVICE_ROLE_KEY`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
-   `COOKIE_SECURE=1`, `COOKIE_SAMESITE=Lax`, `ALLOWED_ORIGINS`.
-3. Projektet kopplas till GitHub-repot så att varje push till sessionens gren ger en förhandsvisning
-   och produktion uppdateras från `main`.
-4. Efter första deployen: verifiera `/api/health`, registrering, inloggning, ett sparmål och en
-   insättning mot den publika URL:en.
+1. Webbläsaren loggar in direkt mot Supabase (`signInWithPassword` / `signUp`). Lösenordet lämnar
+   aldrig webbläsaren och finns inte i någon tabell i appens schema.
+2. `POST /api/auth/session { accessToken, alias?, publicCompetitionConsent? }` verifierar token mot
+   `GET ${SUPABASE_URL}/auth/v1/user` med anon-nyckeln och skapar `users` + `profiles` med
+   `users.id = auth.uid` första gången (`201`), annars `200`.
+3. Servern sätter sin egen `sparly_session`-cookie (HttpOnly, `sha256`-hashad i databasen) och
+   returnerar en CSRF-token. **Vanliga API-anrop pratar aldrig med Supabase** — de validerar bara
+   sessionsraden, vilket gör dem snabba och omedelbart återkalleliga.
+4. Per-enhet-sessioner: två inloggningar ger två rader, utloggning på en enhet rör inte den andra.
+5. Lösenordsbyte och kontoradering kräver ett **färskt** access-token (ny inloggning i webbläsaren) —
+   en stulen sessionscookie kan alltså inte byta lösenord eller radera kontot.
+6. Radering: appens data raderas i en transaktion, därefter Supabase Auth-användaren via Admin-API:t
+   med service-role-nyckeln. Nyckeln används bara server-side och når aldrig webbläsaren.
 
-## Vad som redan är verifierat
+Auth-inställningar på projektet: `site_url = https://sparly-zeta.vercel.app`, återställnings-URL:er
+vitlistade för produktionsdomänen och lokal utveckling, `mailer_autoconfirm = true` (ingen SMTP
+konfigurerad i demomiljön, så konton aktiveras direkt), `password_min_length = 6`.
 
-`npm run check:schema` skapar en tom Postgres-databas, kör alla fem migreringarna och bevisar att
-triggarna fungerar:
+## 3. Vercel
 
-```
-migration 001 core_accounts_sessions_audit ok
-migration 002 savings_goals_transactions_ledger ok
-migration 003 achievements ok
-migration 004 groups_invitations ok
-migration 005 competitions_and_snapshots ok
-ledger immutable -> savings_ledger_append_only
-goal owner guard -> goal_owner_mismatch
-```
+* `vercel.json`: `buildCommand: npm run build`, `outputDirectory: web/dist`, SPA-rewrite till
+  `/index.html`, cache-headers för `/assets`.
+* `api/[...path].js` → `api/_app.js`: skapar Express-appen **en gång per varm instans**, kör
+  migreringarna vid kallstart och sweppar tävlingslivscykeln högst en gång i minuten. Ingen
+  långlivad timer behövs eftersom resultat räknas ut från servertid.
+* Miljövariabler (Production + Preview + Development): `DATABASE_URL`, `DATABASE_POOL_SIZE=3`,
+  `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `VITE_SUPABASE_URL`,
+  `VITE_SUPABASE_ANON_KEY`, `TRUST_PROXY=1`.
+* Node 24, funktionsregion `iad1` (Vercels standard). Databasen ligger i `eu-north-1`, så varje
+  databasrundtur korsar Atlanten — flytta gärna funktionsregionen till `arn1` i
+  projektinställningarna om latensen märks.
 
-Det betyder att huvudboken inte kan skrivas över, att en transaktion inte kan peka på någon annans
-mål och att frysta tävlingssnapshots samt slutresultat är oföränderliga — samma skydd som i
-SQLite-versionen, nu uttryckta som `plpgsql`-triggers.
+## Vad som är verifierat och vad som inte är det
+
+**Verifierat här:**
+
+* `npx tsc -p server/tsconfig.json --noEmit` och `npx tsc -p web/tsconfig.json --noEmit` — inga fel.
+* `npm test` — 38/38 tester gröna mot PGlite (samma SQL som produktion).
+* `npm run build` — SPA + server kompilerar.
+* Supabase: 16 tabeller i `public`, `schema_migrations` 001–006, auth-konfiguration uppdaterad.
+* Vercel: bygget gick igenom, deployment `dpl_DpJADNFvT6q8K5ynZoQKpUXjPLWw` är `READY` och
+  produktionsaliaset `sparly-zeta.vercel.app` är tilldelat.
+
+**Inte verifierat här (och varför):**
+
+* **Anrop mot den publika appen.** Arbetsmiljön har ingen utgående HTTPS — förfrågningar till
+  `*.supabase.co` och `*.vercel.app` når bara en proxy som stänger anslutningen. Kör därför
+  `.github/workflows/deployment-smoke.yml` (manuellt via *Actions → Deployment smoke test*) eller
+  öppna `/api/health` i webbläsaren; det är den enda kvarvarande kontrollen.
+* **Inloggning/registrering i riktig webbläsare** — kräver internet och ett Supabase-konto.
+* **Deployment Protection.** Vercel-projekt skapas med "Vercel Authentication" för alla deployment
+  utom egna domäner. Ser appen ut att kräva Vercel-inloggning: stäng av det under
+  *Project → Settings → Deployment Protection*.

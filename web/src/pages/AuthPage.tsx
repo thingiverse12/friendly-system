@@ -146,8 +146,10 @@ export function AuthPage({ mode }: { mode: Mode }) {
           </div>
 
           {!configured ? (
-            <Banner tone="warning" title="Inloggningen saknar konfiguration" icon="shield">
-              Sätt VITE_SUPABASE_URL och VITE_SUPABASE_ANON_KEY för den här miljön, bygg om webben och ladda sidan igen.
+            <Banner tone="warning" title="Inloggningen är inte konfigurerad här" icon="shield">
+              Den här instansen saknar VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY. Den publika appen med
+              Supabase-inloggning finns på{' '}
+              <a href="https://sparly-zeta.vercel.app">sparly-zeta.vercel.app</a>.
             </Banner>
           ) : null}
 
@@ -204,7 +206,7 @@ export function AuthPage({ mode }: { mode: Mode }) {
                       autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
-                      placeholder={mode === 'login' ? 'Ditt lösenord' : 'Minst 10 tecken, bokstäver och siffror'}
+                      placeholder={mode === 'login' ? 'Ditt lösenord' : 'Minst 8 tecken'}
                       required
                       aria-invalid={Boolean(fieldErrors.password)}
                     />

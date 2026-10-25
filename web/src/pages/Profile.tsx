@@ -118,8 +118,8 @@ export function Profile() {
       setPasswordError('De nya lösenorden matchar inte.');
       return;
     }
-    if (newPassword.length < 10) {
-      setPasswordError('Det nya lösenordet måste vara minst 10 tecken.');
+    if (newPassword.length < 8) {
+      setPasswordError('Det nya lösenordet måste vara minst 8 tecken.');
       return;
     }
     if (!user) return;
@@ -283,7 +283,7 @@ export function Profile() {
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
                 required
-                hint="Minst 10 tecken med både bokstäver och siffror."
+                hint="Minst 8 tecken."
               />
               <TextField
                 label="Bekräfta nytt lösenord"
