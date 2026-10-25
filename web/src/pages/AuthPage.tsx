@@ -133,7 +133,7 @@ export function AuthPage({ mode }: { mode: Mode }) {
           <Logo light />
         </div>
         <div className="auth__mascot">
-          <Mascot size={300} />
+          <Mascot variant="animated" size={300} className="auth__mascot-art" />
         </div>
         <div className="auth__hero-content">
           <p className="auth__tagline">Små steg. Stora mål.</p>

@@ -71,7 +71,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="sidebar__mascot">
-          <Mascot size={92} />
+          <Mascot variant="animated" size={92} className="sidebar__mascot-art" />
           <p className="sidebar__mascot-line">Jag håller koll på dina steg.</p>
         </div>
 

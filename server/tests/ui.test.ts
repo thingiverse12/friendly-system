@@ -62,6 +62,28 @@ describe('18. The application works on mobile and desktop (static + delivery che
     expect(fs.readFileSync(path.join(root, 'web/src/components/UI.tsx'), 'utf8')).toContain('empty-state__mascot');
   });
 
+  it('animates the tail wag with pre-drawn frames that share one crop', () => {
+    const component = fs.readFileSync(path.join(root, 'web/src/components/Mascot.tsx'), 'utf8');
+    expect(component).toContain("variant = 'full'");
+    expect(component).toContain("'animated'");
+
+    const frames = [...component.matchAll(/\/mascot\/hund-vift-(\d)\.png/g)].map((match) => match[1]);
+    expect(frames).toEqual(['1', '2', '3']);
+
+    // All frames must be identical in size, otherwise the dog would jump when the frame switches.
+    const sizes = frames.map((frame) => {
+      const buffer = fs.readFileSync(path.join(root, 'web/public/mascot', `hund-vift-${frame}.png`));
+      return `${buffer.readUInt32BE(16)}x${buffer.readUInt32BE(20)}`;
+    });
+    expect(new Set(sizes).size).toBe(1);
+
+    const styles = fs.readFileSync(path.join(root, 'web/src/styles.css'), 'utf8');
+    expect(styles).toContain('@keyframes mascot-wag');
+    expect(styles).toContain('.mascot__wag-frame');
+    // Reduced motion must freeze the wag on a happy frame rather than flashing.
+    expect(styles).toMatch(/prefers-reduced-motion[\s\S]*\.mascot__wag-frame\s*\{\s*animation:\s*none/);
+  });
+
   it('serves the built SPA for deep links so mobile browsers can reload any tab', async () => {
     const indexPath = path.join(root, 'web/dist/index.html');
     if (!fs.existsSync(indexPath)) {

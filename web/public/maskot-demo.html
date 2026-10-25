@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sparly-hunden – svansviftning</title>
+    <style>
+      :root { --bg:#f4f5f1; --ink:#0d2027; --navy:#0b2a24; --emerald:#0f6b52; --gold:#b8902f; }
+      * { box-sizing: border-box; }
+      body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+      .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 20px 72px; }
+      h1 { font-size: 1.6rem; letter-spacing:-.03em; margin:0 0 4px; }
+      p.lead { margin:0 0 28px; color:#4a5b5d; }
+      .grid { display:grid; gap:20px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+      .card { background:#fff; border:1px solid #e2e5dd; border-radius:18px; padding:18px; text-align:center; }
+      .card h2 { font-size:.8rem; text-transform:uppercase; letter-spacing:.12em; color:#6b7a76; margin:0 0 10px; }
+      .dark { background: linear-gradient(140deg,#0b2a24,#104036); border:0; color:#eafaf2; }
+      .dark h2 { color:rgba(214,245,231,.7); }
+      .stage { position:relative; display:inline-block; }
+      .frame { position:absolute; inset:0; width:100%; height:100%; opacity:0; animation: wag .6s steps(1,end) infinite; }
+      .frame:first-child { position:relative; }
+      .f1 { animation-delay:0s } .f2 { animation-delay:.2s } .f3 { animation-delay:.4s }
+      @keyframes wag { 0%,33.32%{opacity:1} 33.33%,100%{opacity:0} }
+      .slow .frame { animation-duration: 2.4s; }
+      .slow .f1 { animation-delay:0s } .slow .f2 { animation-delay:.8s } .slow .f3 { animation-delay:1.6s }
+      .sizes { display:flex; align-items:flex-end; gap:18px; justify-content:center; margin-top:12px; }
+      .note { font-size:.8rem; color:#6b7a76; margin-top:8px; }
+      .badge { display:inline-block; font-size:.75rem; padding:4px 10px; border-radius:999px; background:#e7f0ea; color:#0f6b52; }
+      footer { margin-top:36px; font-size:.82rem; color:#6b7a76; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Sparly-hunden</h1>
+      <p class="lead">Samma hund i tre teckningar – bara svansen sitter olika högt. Bilderna växlas i tur och ordning, så svansen viftar. Mungipan dras snett uppåt åt sidan, precis som du bad om.</p>
+      <div class="grid">
+        <div class="card">
+          <h2>Normal takt</h2>
+          <div class="stage" style="width:260px">
+            <img class="frame f1" src="/mascot/hund-vift-1.png" width="420" height="457" alt="" />
+            <img class="frame f2" src="/mascot/hund-vift-2.png" width="420" height="457" alt="" />
+            <img class="frame f3" src="/mascot/hund-vift-3.png" width="420" height="457" alt="" />
+          </div>
+          <p class="note">0,6 s per varv – så han rör sig i appen.</p>
+        </div>
+        <div class="card slow">
+          <h2>Långsam (för att se lägena)</h2>
+          <div class="stage" style="width:260px">
+            <img class="frame f1" src="/mascot/hund-vift-1.png" width="420" height="457" alt="" />
+            <img class="frame f2" src="/mascot/hund-vift-2.png" width="420" height="457" alt="" />
+            <img class="frame f3" src="/mascot/hund-vift-3.png" width="420" height="457" alt="" />
+          </div>
+          <p class="note">2,4 s per varv. <span class="badge">svans upp → mitt → ner</span></p>
+        </div>
+        <div class="card dark">
+          <h2>I inloggningens hero</h2>
+          <div class="stage" style="width:210px; filter: drop-shadow(0 16px 30px rgba(0,0,0,.45))">
+            <img class="frame f1" src="/mascot/hund-vift-1.png" width="420" height="457" alt="" />
+            <img class="frame f2" src="/mascot/hund-vift-2.png" width="420" height="457" alt="" />
+            <img class="frame f3" src="/mascot/hund-vift-3.png" width="420" height="457" alt="" />
+          </div>
+          <p class="note" style="color:rgba(233,242,237,.6)">På mörk botten, med skugga.</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:20px">
+        <h2>Storlekar</h2>
+        <div class="sizes">
+          <div class="stage" style="width:200px"><img class="frame f1" src="/mascot/hund-vift-1.png" alt="" /><img class="frame f2" src="/mascot/hund-vift-2.png" alt="" /><img class="frame f3" src="/mascot/hund-vift-3.png" alt="" /></div>
+          <div class="stage" style="width:120px"><img class="frame f1" src="/mascot/hund-vift-1.png" alt="" /><img class="frame f2" src="/mascot/hund-vift-2.png" alt="" /><img class="frame f3" src="/mascot/hund-vift-3.png" alt="" /></div>
+          <div class="stage" style="width:72px"><img class="frame f1" src="/mascot/hund-vift-1.png" alt="" /><img class="frame f2" src="/mascot/hund-vift-2.png" alt="" /><img class="frame f3" src="/mascot/hund-vift-3.png" alt="" /></div>
+        </div>
+        <p class="note">Han fungerar även litet – 72 px i sidomenyn.</p>
+      </div>
+
+      <footer>Statisk förhandsvisning av bilderna. I appen sköts animationen av <code>.mascot__wag-frame</code> i <code>styles.css</code>, och stängs av (fast mittenbild) när användaren har ”minska rörelse” påslaget.</footer>
+    </div>
+  </body>
+</html>

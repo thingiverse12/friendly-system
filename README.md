@@ -428,8 +428,16 @@ downloads the 640 px artwork:
 | File | Used for |
 | --- | --- |
 | `hund.png` (640 px) + `-128`, `-256`, `-320` | `<Mascot variant="full" />`, `srcSet`-driven |
+| `hund-vift-1/2/3.png` (420×457, identical crop) | `<Mascot variant="animated" />` — the tail-wag frames |
 | `hund-ansikte.png` | `<Mascot variant="face" />` — portraits in empty states and the 404 page |
 | `hund-ikon-192/512`, `hund-ikon-maskable-512`, `hund-ikon-180` | web app manifest + `apple-touch-icon` (add to home screen) |
+
+**The wag.** The dog is drawn three times — tail up, tail middle, tail down — on an identical
+canvas, so switching frames moves the tail and nothing else. `variant="animated"` stacks the three
+images and lets them take turns being visible (`@keyframes mascot-wag`, three steps, 0.6 s per
+cycle). With `prefers-reduced-motion: reduce` the animation is turned off and the middle frame stays,
+so the dog is still there and still happy. `web/public/maskot-demo.html` is a static preview of the
+frames at normal and slow speed.
 
 `web/src/components/Mascot.tsx` is the only place that knows the file names. It appears on the
 login/registration screen (hero, bottom right on desktop, above the copy on mobile), as a small
