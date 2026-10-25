@@ -406,9 +406,11 @@ and audit-log pseudonymisation.
   reload behaviour. Run Playwright/Cypress on a machine with a browser for pixel-level checks.
 * **Mobile device farm testing** — unavailable here.
 * **Supabase Auth over the network** — this sandbox has no outbound access to `*.supabase.co`, so
-  the token-verification call and the real sign-up/login round-trip are exercised against a test
-  provider with the identical contract, not against the live project. They work in the deployed app,
-  which runs on Vercel with normal internet access.
+  the token-verification call is exercised against a test provider with the identical contract.
+  What *is* verified from the deployed app: `/api/health` reaches Supabase Auth from Vercel and gets
+  `200` (`"auth":{"reachable":true,"status":200}`). The remaining gap is the browser round trip —
+  `signUp`/`signInWithPassword` → `POST /api/auth/session` → cookie → dashboard — which needs a
+  real browser and a human click.
 * **Live Supabase Postgres** — no direct database connection is possible from this sandbox; the
   suite runs the same migrations and queries on PGlite. Schema and queries are byte-identical.
 * **E-mail delivery** — confirmation/recovery e-mails are sent by Supabase; whether they arrive
@@ -444,8 +446,19 @@ competition lifecycle sweep at most once a minute.
 4. Apply the schema: either let the function migrate on the first request, or run
    `DATABASE_URL=... node dist/index.js` once locally. Migrations live in
    `server/src/pg/migrations.ts` and are recorded in `schema_migrations`.
-5. `GET /api/health` returns `{ "ok": true, "database": "ok" }` when the connection string is right;
-   a failure to connect returns `503` with the driver message.
+5. `GET /api/health` returns `{"status":"ok","database":"ok","databaseHost":"<pooler host>","auth":{...}}`
+   when the connection string and the Supabase keys are right; a failure to connect returns `503`
+   with the driver message and the boot stage that failed.
+
+The deployment that is live right now was verified like this (note the cache-busting query — Vercel
+caches `/api/health` responses on the CDN, so an old 503 can otherwise survive a redeploy):
+
+```
+GET https://sparly-zeta.vercel.app/api/health?diag=<commit sha>
+{"status":"ok","time":"...","version":"1.0.0","database":"ok",
+ "databaseHost":"aws-0-eu-north-1.pooler.supabase.com:6543",
+ "auth":{"supabaseUrl":true,"anonKey":true,"serviceRoleKey":true,"reachable":true,"status":200}}
+```
 
 Serverless notes: the pool is small on purpose, Supavisor transaction mode is used, and nothing is
 written to disk. Competition lifecycle, which a long-lived server runs on a timer, is swept lazily

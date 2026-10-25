@@ -43,8 +43,24 @@ Nytt i porten: `seq BIGINT IDENTITY` på `savings_goals`, `transactions` och `sa
 listordningen är deterministisk även när två rader har samma tidsstämpel (testklockan kan frysa tiden),
 samt att alla `AS "camelCase"`-alias är citatteckenomslutna eftersom Postgres annars viker dem till gemener.
 
-Anslutningssträng: **Supavisor transaction pooler** (`aws-1-eu-north-1.pooler.supabase.com:6543`).
-Direktanslutningen `db.<ref>.supabase.co` är IPv6-only och fungerar inte från serverlösa miljöer.
+Anslutningssträng: **Supavisor transaction pooler**,
+`postgresql://postgres.<ref>:<lösenord>@aws-0-eu-north-1.pooler.supabase.com:6543/postgres`, med
+`postgres.<ref>` som användarnamn. Poolerns index (`aws-0` / `aws-1`) går inte att härleda från
+regionen, så värdet togs från Supabase Connect-dialogen och verifierades med `/api/health`, som
+rapporterar den faktiskt använda värden.
+
+Direktanslutningen `db.<ref>.supabase.co` användes aldrig — den behövdes inte. Att den är
+IPv6-only utan IPv4-tillägget är sant på Supabase, men det var **inte** orsaken till något av felen
+under driftsättningen (de satt i appens databasskikt och i en miljövariabel, se nedan).
+
+Två fel som kostade tid och vad de egentligen berodde på:
+
+1. `Maximum call stack size exceeded` vid kallstart — appens `scopeAware()`-wrapper returnerade sig
+   själv när en transaktion var aktiv, vilket gav oändlig rekursion i `db.tx`. Rättat i
+   `server/src/db.ts` (guarden `if (!active || active === wrapper) return db;`).
+2. `ENOTFOUND tenant/user postgres.<ref> not found` — den *känsliga* Vercel-variabeln `DATABASE_URL`
+   hade ett tomt värde i funktionen. `update_env_var` på känsliga variabler slår inte alltid igenom
+   på det som funktionen får; radera och återskapa variabeln löste det.
 
 ## 2. Inloggningen (Supabase Auth)
 
@@ -63,8 +79,11 @@ Direktanslutningen `db.<ref>.supabase.co` är IPv6-only och fungerar inte från 
    med service-role-nyckeln. Nyckeln används bara server-side och når aldrig webbläsaren.
 
 Auth-inställningar på projektet: `site_url = https://sparly-zeta.vercel.app`, återställnings-URL:er
-vitlistade för produktionsdomänen och lokal utveckling, `mailer_autoconfirm = true` (ingen SMTP
-konfigurerad i demomiljön, så konton aktiveras direkt), `password_min_length = 6`.
+vitlistade för produktionsdomänen, förhandsdomänerna `sparly-*.vercel.app` och lokal utveckling
+(`localhost:3000`, `localhost:5173`), `mailer_autoconfirm = true` — ingen SMTP är kopplad till
+projektet, så konton aktiveras direkt i stället för att fastna i "väntar på bekräftelse".
+`password_min_length` är Supabase-standard (6); gränssnittet kräver 8 tecken både vid registrering
+och vid lösenordsbyte.
 
 ## 3. Vercel
 
@@ -72,7 +91,11 @@ konfigurerad i demomiljön, så konton aktiveras direkt), `password_min_length =
   `/index.html`, cache-headers för `/assets`.
 * `api/[...path].js` → `api/_app.js`: skapar Express-appen **en gång per varm instans**, kör
   migreringarna vid kallstart och sweppar tävlingslivscykeln högst en gång i minuten. Ingen
-  långlivad timer behövs eftersom resultat räknas ut från servertid.
+  långlivad timer behövs eftersom resultat räknas ut från servertid. En misslyckad kallstart
+  cachas inte — nästa request försöker igen.
+* `/api/health` svarar med `database`, `databaseHost` och ett `auth`-block som visar om
+  Supabase-uppgifterna finns (`supabaseUrl`, `anonKey`, `serviceRoleKey` — endast `true`/`false`)
+  samt om Supabase Auth faktiskt svarar (`reachable`, `status`) från Vercels nätverk.
 * Miljövariabler (Production + Preview + Development): `DATABASE_URL`, `DATABASE_POOL_SIZE=3`,
   `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `VITE_SUPABASE_URL`,
   `VITE_SUPABASE_ANON_KEY`, `TRUST_PROXY=1`.
@@ -88,18 +111,26 @@ konfigurerad i demomiljön, så konton aktiveras direkt), `password_min_length =
 * `npm test` — 38/38 tester gröna mot PGlite (samma SQL som produktion).
 * `npm run build` — SPA + server kompilerar.
 * Supabase: 16 tabeller i `public`, `schema_migrations` 001–006, auth-konfiguration uppdaterad.
-* Vercel: bygget gick igenom, deployment `dpl_DpJADNFvT6q8K5ynZoQKpUXjPLWw` är `READY` och
-  produktionsaliaset `sparly-zeta.vercel.app` är tilldelat.
+* Vercel: bygget går igenom, produktionen ligger på `sparly-zeta.vercel.app`.
+* **Kallstart mot riktig databas** (verifierat via `/api/health?diag=<sha>`):
+
+  ```json
+  {"status":"ok","database":"ok","databaseHost":"aws-0-eu-north-1.pooler.supabase.com:6543",
+   "auth":{"supabaseUrl":true,"anonKey":true,"serviceRoleKey":true,"reachable":true,"status":200}}
+  ```
+
+  Det vill säga: funktionen når Supabase Postgres, migreringarna är applicerade, de tre
+  Supabase-variablerna finns i funktionen och GoTrue svarar `200` från Vercels nätverk.
 
 **Inte verifierat här (och varför):**
 
-* **Anrop mot den publika appen.** Arbetsmiljön har ingen utgående HTTPS — förfrågningar till
-  `*.supabase.co` och `*.vercel.app` når bara en proxy som stänger anslutningen. Kör därför
-  `.github/workflows/deployment-smoke.yml` (manuellt via *Actions → Deployment smoke test*) eller
-  öppna `/api/health` i webbläsaren; det är den enda kvarvarande kontrollen.
-* **Inloggning/registrering i riktig webbläsare** — kräver internet och ett Supabase-konto.
+* **Anrop mot den publika appen** — arbetsmiljön har ingen utgående HTTPS (allt utom en vitlista
+  stängs av en proxy), så GET-anrop mot `*.vercel.app` gjordes via ett sidhämtningsverktyg.
+  POST-anrop, cookies och redirects kan därför inte köras härifrån.
+* **Inloggning/registrering i riktig webbläsare** — hela kedjan (Supabase `signUp`/`signInWithPassword`
+  → `POST /api/auth/session` → cookie → inloggad dashboard) måste köras i en webbläsare med
+  internet. Det är den enda kontroll som återstår, och den kräver ett klick från en människa.
 * **Deployment Protection.** Vercel-projekt skapas med "Vercel Authentication" för alla deployment
   utom egna domäner. Ser appen ut att kräva Vercel-inloggning: stäng av det under
   *Project → Settings → Deployment Protection*.
 
-<!-- deploy-probe: pooler host verification in progress -->
