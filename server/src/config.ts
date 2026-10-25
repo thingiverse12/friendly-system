@@ -14,8 +14,19 @@ export const config = {
   isProduction,
   port: intEnv('PORT', 3000),
   host: process.env.HOST ?? '0.0.0.0',
-  /** Supabase Postgres connection string (pooled). Required in production. */
-  databaseUrl: process.env.DATABASE_URL ?? null,
+  /**
+   * Supabase Postgres connection string (pooled). Required in production.
+   *
+   * A comma-separated list is accepted: candidates are tried in order and the first one that
+   * connects wins. Supabase's pooler host (`aws-<n>-<region>.pooler.supabase.com`) cannot be derived
+   * from the region, so listing the variants — or the direct host as a last resort — makes the
+   * deployment resilient without any code change.
+   */
+  databaseUrl: (process.env.DATABASE_URL ?? '').split(',').map((value) => value.trim()).filter(Boolean)[0] ?? null,
+  databaseUrls: (process.env.DATABASE_URL ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean),
   /** PGlite data directory used for local development when DATABASE_URL is absent. */
   pgliteDir: process.env.PGLITE_DIR ?? path.resolve(process.cwd(), 'data', 'pglite'),
   databaseSsl: process.env.DATABASE_SSL === '1',

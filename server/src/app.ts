@@ -3,6 +3,7 @@ import path from 'node:path';
 import express, { type NextFunction, type Request, type Response } from 'express';
 import type { Db } from './db.js';
 import { config } from './config.js';
+import { databaseHost } from './db.js';
 import { AppError } from './lib/errors.js';
 import { csrfMiddleware, sessionMiddleware } from './lib/http.js';
 import { authRoutes, profileRoutes } from './routes/auth.js';
@@ -86,8 +87,20 @@ export function createApp(db: Db, auth: AuthProvider = defaultAuthProvider()) {
   app.use(securityHeaders);
   app.use(sessionMiddleware(db));
 
-  app.get('/api/health', (_req, res) => {
-    res.json({ status: 'ok', time: nowIso(), version: '1.0.0' });
+  app.get('/api/health', async (_req, res) => {
+    try {
+      await db.one('SELECT 1 AS ok');
+      res.json({ status: 'ok', time: nowIso(), version: '1.0.0', database: 'ok', databaseHost: databaseHost() ?? undefined });
+    } catch (error) {
+      res.status(503).json({
+        status: 'degraded',
+        time: nowIso(),
+        version: '1.0.0',
+        database: 'error',
+        databaseHost: databaseHost() ?? undefined,
+        detail: (error as Error).message,
+      });
+    }
   });
 
   // Every mutating API request must be same-origin and carry the double-submit CSRF token.

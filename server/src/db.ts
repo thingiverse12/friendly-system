@@ -210,8 +210,39 @@ export async function createPgliteDatabase(location = 'memory://'): Promise<Db> 
   return scopeAware(db);
 }
 
+/** Host of the connection string that is actually in use (no credentials), for diagnostics. */
+let activeDatabaseHost: string | null = null;
+
+export function databaseHost(): string | null {
+  return activeDatabaseHost;
+}
+
+function hostOf(connectionString: string): string {
+  try {
+    return new URL(connectionString).host;
+  } catch {
+    return 'ogiltig anslutningssträng';
+  }
+}
+
 export async function createDatabase(): Promise<Db> {
-  if (config.databaseUrl) return createPgDatabase(config.databaseUrl);
+  if (config.databaseUrls.length > 0) {
+    let lastError: unknown = null;
+    for (const candidate of config.databaseUrls) {
+      try {
+        const db = await createPgDatabase(candidate);
+        activeDatabaseHost = hostOf(candidate);
+        if (config.databaseUrls.length > 1) {
+          console.log(`[sparly] connected to ${activeDatabaseHost}`);
+        }
+        return db;
+      } catch (error) {
+        lastError = error;
+        console.warn(`[sparly] database candidate ${hostOf(candidate)} failed: ${(error as Error).message}`);
+      }
+    }
+    throw lastError ?? new Error('Ingen databasanslutning lyckades.');
+  }
   if (config.isProduction) {
     throw new Error('DATABASE_URL måste vara satt i produktion (Supabase Postgres).');
   }

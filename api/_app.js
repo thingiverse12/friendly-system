@@ -7,7 +7,7 @@
  * `server/src/index.ts` does on a long-lived server.
  */
 import { createApp } from '../dist/app.js';
-import { createDatabase, migrate } from '../dist/db.js';
+import { createDatabase, databaseHost, migrate } from '../dist/db.js';
 import { ensurePublicCompetitions, syncCompetitionLifecycle } from '../dist/services/competitions.js';
 import { purgeExpiredSessions } from '../dist/services/sessions.js';
 
@@ -50,6 +50,7 @@ export default async function handler(req, res) {
       JSON.stringify({
         error: 'Databasen är inte tillgänglig just nu.',
         detail: String(error && error.message ? error.message : error),
+        databaseHost: databaseHost() ?? undefined,
       }),
     );
     return;
