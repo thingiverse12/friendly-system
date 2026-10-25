@@ -34,27 +34,6 @@ async function boot() {
   return app;
 }
 
-/** First frames of a stack trace, without absolute paths, for cold-start diagnostics. */
-function trace(error) {
-  const stack = error && error.stack ? String(error.stack) : '';
-  return stack
-    .split('\n')
-    .slice(0, 6)
-    .map((line) => line.trim().replace(/\/var\/task\//g, ''))
-    .join(' <- ');
-}
-
-function app() {
-  if (!ready) {
-    ready = boot().catch((error) => {
-      // A failed cold start must not be cached forever: the next request retries.
-      ready = null;
-      throw error;
-    });
-  }
-  return ready;
-}
-
 export default async function handler(req, res) {
   let express;
   try {
@@ -69,7 +48,6 @@ export default async function handler(req, res) {
         detail: String(error && error.message ? error.message : error),
         databaseHost: databaseHost() ?? undefined,
         stage,
-        trace: trace(error),
       }),
     );
     return;
