@@ -28,27 +28,28 @@ interface AchievementRow {
  * - UNIQUE(user_id, achievement_id, goal_id) plus INSERT OR IGNORE makes duplicate awards impossible.
  * - Existing rows are never updated or deleted, so the earned history stays intact.
  */
-export function syncGoalAchievements(
+export async function syncGoalAchievements(
   db: Db,
   userId: string,
   goalId: string,
   balanceOre: number,
   targetOre: number,
-): EarnedAchievement[] {
+): Promise<EarnedAchievement[]>{
   const bps = progressBps(balanceOre, targetOre);
-  const achievements = db
+  const achievements = await db
     .prepare('SELECT id, code, name, description, milestone_bps, badge FROM achievements ORDER BY milestone_bps')
     .all() as AchievementRow[];
   const insert = db.prepare(
-    `INSERT OR IGNORE INTO user_achievements
+    `INSERT INTO user_achievements
        (id, user_id, achievement_id, goal_id, earned_at, progress_bps_at_award)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (user_id, achievement_id, goal_id) DO NOTHING`,
   );
   const earned: EarnedAchievement[] = [];
   for (const achievement of achievements) {
     if (bps < achievement.milestone_bps) continue;
-    const result = insert.run(uuid(), userId, achievement.id, goalId, nowIso(), bps);
-    if (result.changes > 0) {
+    const result = await insert.run(uuid(), userId, achievement.id, goalId, nowIso(), bps);
+    if (result > 0) {
       earned.push({
         code: achievement.code,
         name: achievement.name,
@@ -80,7 +81,7 @@ const LEVELS: Array<{ level: number; name: string; min: number }> = [
   { level: 5, name: 'Sparmästare', min: 5 },
 ];
 
-export function levelFor(earnedCount: number): LevelInfo {
+export async function levelFor(earnedCount: number): Promise<LevelInfo>{
   let current = LEVELS[0]!;
   for (const level of LEVELS) if (earnedCount >= level.min) current = level;
   const next = LEVELS.find((level) => level.min > earnedCount) ?? null;
@@ -107,18 +108,18 @@ export interface AchievementCatalogItem {
 }
 
 /** Full catalog for the signed-in user; only their own awards are included. */
-export function achievementCatalog(db: Db, userId: string): {
+export async function achievementCatalog(db: Db, userId: string): Promise<{
   catalog: AchievementCatalogItem[];
   level: LevelInfo;
   /** Distinct badges unlocked. */
   totalEarned: number;
   /** Total awards across all goals (history length). */
   totalAwards: number;
-} {
-  const achievements = db
+}> {
+  const achievements = await db
     .prepare('SELECT id, code, name, description, milestone_bps, badge FROM achievements ORDER BY sort_order')
     .all() as AchievementRow[];
-  const awards = db
+  const awards = await db
     .prepare(
       `SELECT ua.achievement_id, ua.goal_id, ua.earned_at, g.name AS goal_name
        FROM user_achievements ua
@@ -141,12 +142,12 @@ export function achievementCatalog(db: Db, userId: string): {
     };
   });
   const totalEarned = catalog.filter((item) => item.earnedCount > 0).length;
-  return { catalog, level: levelFor(totalEarned), totalEarned, totalAwards: awards.length };
+  return { catalog, level: await levelFor(totalEarned), totalEarned, totalAwards: awards.length };
 }
 
 /** Highest "approved" badge for leaderboards. Only shown when the user opted in to badge sharing. */
-export function topBadgeFor(db: Db, userId: string): string | null {
-  const row = db
+export async function topBadgeFor(db: Db, userId: string): Promise<string | null>{
+  const row = await db
     .prepare(
       `SELECT a.badge FROM user_achievements ua
        JOIN achievements a ON a.id = ua.achievement_id

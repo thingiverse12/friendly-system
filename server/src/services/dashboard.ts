@@ -38,8 +38,8 @@ export interface DashboardData {
   serverTime: string;
 }
 
-export function dashboard(db: Db, userId: string): DashboardData {
-  const goals = listGoals(db, userId, false);
+export async function dashboard(db: Db, userId: string): Promise<DashboardData>{
+  const goals = await listGoals(db, userId, false);
   const active = goals.filter((goal) => !goal.archived);
   const savedOre = active.reduce((sum, goal) => sum + goal.balanceOre, 0);
   const targetOre = active.reduce((sum, goal) => sum + goal.targetAmountOre, 0);
@@ -48,7 +48,7 @@ export function dashboard(db: Db, userId: string): DashboardData {
   const now = new Date(nowIso());
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
   const monthEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1)).toISOString();
-  const month = monthlySummary(db, userId, monthStart, monthEnd);
+  const month = await monthlySummary(db, userId, monthStart, monthEnd);
 
   let nextMilestone: DashboardData['nextMilestone'] = null;
   for (const goal of active) {
@@ -71,8 +71,8 @@ export function dashboard(db: Db, userId: string): DashboardData {
     }
   }
 
-  const achievementInfo = achievementCatalog(db, userId);
-  const competitions = db
+  const achievementInfo = await achievementCatalog(db, userId);
+  const competitions = await db
     .prepare(
       `SELECT
          (SELECT COUNT(*) FROM competitions WHERE status = 'active') AS active,
@@ -82,15 +82,15 @@ export function dashboard(db: Db, userId: string): DashboardData {
     )
     .get(userId) as { active: number; upcoming: number; joined: number };
 
-  const recentTransactions = db
+  const recentTransactions = await db
     .prepare(
-      `SELECT t.id, t.type, t.amount_ore AS amountOre, t.category, t.occurred_at AS occurredAt, g.name AS goalName
+      `SELECT t.id, t.type, t.amount_ore AS "amountOre", t.category, t.occurred_at AS "occurredAt", g.name AS "goalName"
        FROM transactions t LEFT JOIN savings_goals g ON g.id = t.goal_id AND g.owner_id = t.owner_id
        WHERE t.owner_id = ? ORDER BY t.occurred_at DESC, t.created_at DESC LIMIT 5`,
     )
     .all(userId) as DashboardData['recentTransactions'];
 
-  const transactionCount = db
+  const transactionCount = await db
     .prepare('SELECT COUNT(*) AS count FROM transactions WHERE owner_id = ? AND occurred_at >= ? AND occurred_at < ?')
     .get(userId, monthStart, monthEnd) as { count: number };
 

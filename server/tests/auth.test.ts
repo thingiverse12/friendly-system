@@ -1,5 +1,5 @@
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
-import { client, createHarness, signup } from './helpers.js';
+import { client, createHarness, signup, tokenFor } from './helpers.js';
 import { setTestClock } from '../src/lib/time.js';
 
 const FIXED_NOW = Date.parse('2026-03-02T09:00:00.000Z');
@@ -9,7 +9,7 @@ afterAll(() => setTestClock(null));
 
 describe('1. Unauthenticated users cannot access financial data', () => {
   it('rejects every financial endpoint without a session', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const api = await client(harness.app).init();
       const endpoints = [
@@ -32,12 +32,12 @@ describe('1. Unauthenticated users cannot access financial data', () => {
       expect(competitions.body.mine).toEqual([]);
       expect(JSON.stringify(competitions.body.public)).not.toMatch(/balance|target|email/i);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 
   it('forged session cookies are ignored', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const api = await client(harness.app).init();
       const response = await api.agent
@@ -46,14 +46,14 @@ describe('1. Unauthenticated users cannot access financial data', () => {
         .set('x-forwarded-for', api.ip);
       expect(response.status).toBe(401);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });
 
 describe('Authentication lifecycle', () => {
   it('registers, logs in, logs out and validates the session server-side', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const { client: api } = await signup(harness.app, 'alex@example.com', { alias: 'sparlygd_alex' });
       const me = await api.get('/api/auth/me');
@@ -75,111 +75,125 @@ describe('Authentication lifecycle', () => {
         .set('x-forwarded-for', api.ip);
       expect(replayed.status).toBe(401);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 
-  it('stores Argon2id hashes and never plaintext passwords, and rejects duplicate e-mail', async () => {
-    const harness = createHarness();
+  it('maps Supabase identities and never stores credentials itself', async () => {
+    const harness = await createHarness();
     try {
-      await signup(harness.app, 'hash@example.com', {}, 'UniktLösenord123');
-      const row = harness.db.prepare('SELECT password_hash AS hash FROM users WHERE email = ?').get('hash@example.com') as {
-        hash: string;
-      };
-      expect(row.hash.startsWith('$argon2id$')).toBe(true);
-      expect(row.hash).not.toContain('UniktLösenord123');
+      const { user } = await signup(harness.app, 'hash@example.com', { alias: 'hash_anvandare' });
+      expect(user.email).toBe('hash@example.com');
 
-      const api = await client(harness.app).init();
-      const duplicate = await api.post('/api/auth/register', {
-        email: 'hash@example.com',
-        password: 'AnnatLösenord123',
-        acceptedTerms: true,
+      // The app owns profile and finance data only; credentials live in Supabase Auth.
+      const columns = await harness.db.prepare(
+        "SELECT column_name AS name FROM information_schema.columns WHERE table_name = 'users'",
+      ).all() as Array<{ name: string }>;
+      const names = columns.map((column) => column.name);
+      expect(names).not.toContain('password_hash');
+      expect(names).not.toContain('password');
+      expect(names).toContain('email_verified');
+
+      // Two different Supabase users cannot claim the same e-mail.
+      const other = await client(harness.app).init();
+      const clash = await other.post('/api/auth/session', {
+        accessToken: 'test:99999999-9999-4999-8999-999999999999:hash@example.com',
       });
-      expect(duplicate.status).toBe(409);
+      expect(clash.status).toBe(409);
+
+      // The same Supabase identity logging in again reuses its row.
+      const again = await client(harness.app).init();
+      const repeated = await again.post('/api/auth/session', { accessToken: tokenFor('hash@example.com') });
+      expect(repeated.status).toBe(200);
+      expect(repeated.body.created).toBe(false);
+      const users = await harness.db.prepare('SELECT COUNT(*)::int AS count FROM users').get() as { count: number };
+      expect(users.count).toBe(1);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 
-  it('rejects wrong passwords with a generic message', async () => {
-    const harness = createHarness();
-    try {
-      await signup(harness.app, 'login@example.com');
-      const api = await client(harness.app).init();
-      const wrong = await api.post('/api/auth/login', { email: 'login@example.com', password: 'FelLösenord123' });
-      expect(wrong.status).toBe(401);
-      expect(wrong.body.error.message).toBe('E-post eller lösenord stämmer inte.');
-
-      const unknown = await api.post('/api/auth/login', { email: 'nobody@example.com', password: 'FelLösenord123' });
-      expect(unknown.status).toBe(401);
-      expect(unknown.body.error.message).toBe(wrong.body.error.message);
-    } finally {
-      harness.close();
-    }
-  });
-
-  it('completes a password reset and invalidates the old password and token', async () => {
-    const harness = createHarness();
-    try {
-      const { client: api } = await signup(harness.app, 'reset@example.com', {}, 'GammaltLösenord123');
-      const requestReset = await api.post('/api/auth/password/request', { email: 'reset@example.com' });
-      expect(requestReset.status).toBe(200);
-      const token = requestReset.body.devResetToken as string;
-      expect(token).toBeTruthy();
-
-      // Unknown e-mail gets the same generic answer.
-      const unknown = await api.post('/api/auth/password/request', { email: 'nobody@example.com' });
-      expect(unknown.status).toBe(200);
-      expect(unknown.body.devResetToken).toBeUndefined();
-
-      const reset = await api.post('/api/auth/password/reset', { token, password: 'NyttLösenord123' });
-      expect(reset.status).toBe(200);
-
-      const reuse = await api.post('/api/auth/password/reset', { token, password: 'AnnuEtt12345' });
-      expect(reuse.status).toBe(400);
-
-      const loginApi = await client(harness.app).init();
-      expect((await loginApi.post('/api/auth/login', { email: 'reset@example.com', password: 'NyttLösenord123' })).status).toBe(200);
-      const oldLogin = await client(harness.app).init();
-      expect((await oldLogin.post('/api/auth/login', { email: 'reset@example.com', password: 'GammaltLösenord123' })).status).toBe(401);
-    } finally {
-      harness.close();
-    }
-  });
-
-  it('rejects weak passwords and invalid e-mail addresses', async () => {
-    const harness = createHarness();
+  it('rejects missing, malformed and foreign access tokens with a generic message', async () => {
+    const harness = await createHarness();
     try {
       const api = await client(harness.app).init();
-      for (const password of ['kort1', 'baraBokstäver', '1234567890']) {
-        const response = await api.post('/api/auth/register', {
-          email: `weak${Math.random()}@example.com`,
-          password,
-          acceptedTerms: true,
-        });
-        expect(response.status, password).toBe(422);
+      const messages = new Set<string>();
+      for (const accessToken of ['inte-en-giltig-token-alls', 'test:bara-tva-delar-har', 'x'.repeat(40)]) {
+        const response = await api.post('/api/auth/session', { accessToken });
+        expect(response.status).toBe(401);
+        messages.add(response.body.error.message);
       }
-      const badEmail = await api.post('/api/auth/register', {
-        email: 'inte-en-epost',
-        password: 'GiltigtLösenord123',
-        acceptedTerms: true,
-      });
-      expect(badEmail.status).toBe(422);
-      const noTerms = await api.post('/api/auth/register', {
-        email: 'villkor@example.com',
-        password: 'GiltigtLösenord123',
-        acceptedTerms: false,
-      });
-      expect(noTerms.status).toBe(422);
+      expect(messages.size).toBe(1);
+      expect([...messages][0]).toMatch(/logga in/i);
+
+      // A missing token never reaches Supabase; it is a validation error.
+      expect((await api.post('/api/auth/session', {})).status).toBe(422);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
-});
 
-describe('CSRF and rate limiting', () => {
+  it('keeps sessions independent per device and revokes only the one that logs out', async () => {
+    const harness = await createHarness();
+    try {
+      const phone = await client(harness.app).init();
+      const laptop = await client(harness.app).init();
+      await phone.register('device@example.com', { alias: 'dela_enheter' });
+      await laptop.login('device@example.com');
+
+      expect((await phone.get('/api/goals')).status).toBe(200);
+      expect((await laptop.get('/api/goals')).status).toBe(200);
+
+      const logout = await phone.post('/api/auth/logout');
+      expect(logout.status).toBe(200);
+      expect((await phone.get('/api/goals')).status).toBe(401);
+      expect((await laptop.get('/api/goals')).status).toBe(200);
+
+      const sessions = await harness.db
+        .prepare('SELECT COUNT(*)::int AS total, COUNT(revoked_at)::int AS revoked FROM sessions')
+        .get() as { total: number; revoked: number };
+      expect(sessions.total).toBe(2);
+      expect(sessions.revoked).toBe(1);
+    } finally {
+      await harness.close();
+    }
+  });
+
+  it('validates alias, timezone and consent when the profile is created or updated', async () => {
+    const harness = await createHarness();
+    try {
+      const invalidAlias = await client(harness.app).init();
+      expect(
+        (await invalidAlias.post('/api/auth/session', {
+          accessToken: tokenFor('alias@example.com'),
+          alias: 'a',
+        })).status,
+      ).toBe(422);
+
+      const invalidZone = await client(harness.app).init();
+      expect(
+        (await invalidZone.post('/api/auth/session', {
+          accessToken: tokenFor('zone@example.com'),
+          timezone: 'Mars/Olympus',
+        })).status,
+      ).toBe(422);
+
+      const { client: api } = await signup(harness.app, 'valid@example.com', {
+        alias: 'giltigt_alias',
+        publicCompetitionConsent: true,
+      });
+      expect((await api.patch('/api/profile', { alias: 'nytt_alias' })).status).toBe(200);
+      expect((await api.patch('/api/profile', { timezone: 'Europe/Stockholm' })).status).toBe(200);
+      // Alias uniqueness is enforced by the database, not only by the UI.
+      const other = await signup(harness.app, 'other@example.com', { alias: 'annat_alias' });
+      expect((await other.client.patch('/api/profile', { alias: 'nytt_alias' })).status).toBe(409);
+    } finally {
+      await harness.close();
+    }
+  });
+
   it('rejects state-changing requests without a CSRF token or from a foreign origin', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const { client: api } = await signup(harness.app, 'csrf@example.com');
       const missing = await api.agent
@@ -206,32 +220,31 @@ describe('CSRF and rate limiting', () => {
       const valid = await api.post('/api/goals', { name: 'Rätt token', targetAmountOre: 100000 });
       expect(valid.status).toBe(201);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 
-  it('rate limits login attempts', async () => {
-    const harness = createHarness();
+  it('rate limits session exchanges per client', async () => {
+    const harness = await createHarness();
     try {
-      await signup(harness.app, 'ratelimit@example.com');
       const attacker = await client(harness.app).init();
       const statuses: number[] = [];
-      for (let attempt = 0; attempt < 10; attempt += 1) {
-        const response = await attacker.post('/api/auth/login', {
-          email: 'ratelimit@example.com',
-          password: `Fel${attempt}Lösenord`,
-        });
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        const response = await attacker.post('/api/auth/session', { accessToken: `fel-token-${attempt}` });
         statuses.push(response.status);
       }
       expect(statuses.filter((status) => status === 429).length).toBeGreaterThan(0);
       expect(statuses.at(-1)).toBe(429);
+      // Rate limiting must not create users or sessions.
+      const users = await harness.db.prepare('SELECT COUNT(*)::int AS count FROM users').get() as { count: number };
+      expect(users.count).toBe(0);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 
   it('rejects SQL injection attempts without corrupting data', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const { client: api } = await signup(harness.app, 'injection@example.com');
       const goal = await api.post('/api/goals', { name: "Mål'); DROP TABLE users;--", targetAmountOre: 100000 });
@@ -239,17 +252,17 @@ describe('CSRF and rate limiting', () => {
       const list = await api.get('/api/transactions?category=%27%20OR%201%3D1%20--');
       expect(list.status).toBe(200);
       expect(list.body.items).toEqual([]);
-      const users = harness.db.prepare("SELECT COUNT(*) AS count FROM users").get() as { count: number };
+      const users = await harness.db.prepare("SELECT COUNT(*) AS count FROM users").get() as { count: number };
       expect(users.count).toBe(1);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });
 
 describe('5. Public participation is disabled by default', () => {
   it('defaults public consent to false, requires explicit opt-in, and blocks joining until consent', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const { client: api, user } = await signup(harness.app, 'consent@example.com');
       expect(user.profile.publicCompetitionConsent).toBe(false);
@@ -258,8 +271,7 @@ describe('5. Public participation is disabled by default', () => {
       const goal = await api.post('/api/goals', { name: 'Resa', targetAmountOre: 500000 });
       // Discovery seeds the public 7- and 30-day competitions.
       await api.get('/api/competitions');
-      const competitionId = harness.db
-        .prepare("SELECT id FROM competitions WHERE visibility = 'public' LIMIT 1")
+      const competitionId = await harness.db.prepare("SELECT id FROM competitions WHERE visibility = 'public' LIMIT 1")
         .get() as { id: string };
 
       const blocked = await api.post(`/api/competitions/${competitionId.id}/join`, { goalId: goal.body.goal.id });
@@ -272,12 +284,11 @@ describe('5. Public participation is disabled by default', () => {
       const allowed = await api.post(`/api/competitions/${competitionId.id}/join`, { goalId: goal.body.goal.id });
       expect(allowed.status).toBe(201);
 
-      const stored = harness.db
-        .prepare('SELECT public_competition_consent AS consent FROM profiles WHERE user_id = ?')
+      const stored = await harness.db.prepare('SELECT public_competition_consent AS consent FROM profiles WHERE user_id = ?')
         .get(user.id) as { consent: number };
       expect(stored.consent).toBe(1);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });

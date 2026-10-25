@@ -10,7 +10,7 @@ afterAll(() => setTestClock(null));
 
 describe('2. A user cannot read or modify another user’s data', () => {
   it('hides and protects other users’ transactions', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const alice = await signup(harness.app, 'alice@example.com', { alias: 'alice_spar' });
       const bob = await signup(harness.app, 'bob@example.com', { alias: 'bob_spar' });
@@ -39,12 +39,12 @@ describe('2. A user cannot read or modify another user’s data', () => {
       expect(stillThere.status).toBe(200);
       expect(stillThere.body.transaction.amountOre).toBe(49900);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 
   it('hides and protects other users’ goals, balances and ledgers', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const alice = await signup(harness.app, 'alice2@example.com', { alias: 'alice_two' });
       const bob = await signup(harness.app, 'bob2@example.com', { alias: 'bob_two' });
@@ -76,14 +76,14 @@ describe('2. A user cannot read or modify another user’s data', () => {
       const bobDashboard = await bob.client.get('/api/dashboard');
       expect(bobDashboard.body.totals.savedOre).toBe(250_000);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });
 
 describe('3. Group members cannot access one another’s balances', () => {
   it('shares only aliases and roles inside a group', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const owner = await signup(harness.app, 'owner@example.com', { alias: 'grupp_agare' });
       const member = await signup(harness.app, 'member@example.com', { alias: 'grupp_medlem' });
@@ -122,14 +122,14 @@ describe('3. Group members cannot access one another’s balances', () => {
       expect(JSON.stringify(memberView.body)).not.toMatch(/balance|750000/i);
       expect(memberView.body.invitations).toEqual([]); // invitations are owner-only
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });
 
 describe('4. Public leaderboards never expose private financial fields', () => {
   it('returns only alias, rank, score, class and approved badge', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const alice = await signup(harness.app, 'la@example.com', { alias: 'topp_alice' });
       const bob = await signup(harness.app, 'lb@example.com', { alias: 'topp_bob' });
@@ -141,13 +141,12 @@ describe('4. Public leaderboards never expose private financial fields', () => {
       await deposit(alice.client, aliceGoal.id, 100_000);
       await deposit(bob.client, bobGoal.id, 200_000);
 
-      const competition = harness.db
-        .prepare("SELECT id FROM competitions WHERE visibility = 'public' LIMIT 1")
+      const competition = await harness.db.prepare("SELECT id FROM competitions WHERE visibility = 'public' LIMIT 1")
         .get() as { id: string } | undefined;
       const competitionId =
         competition?.id ??
         (await alice.client.get('/api/competitions')).body.public[0].id;
-      syncCompetitionLifecycle(harness.db);
+      await syncCompetitionLifecycle(harness.db);
 
       expect((await alice.client.post(`/api/competitions/${competitionId}/join`, { goalId: aliceGoal.id })).status).toBe(201);
       expect((await bob.client.post(`/api/competitions/${competitionId}/join`, { goalId: bobGoal.id })).status).toBe(201);
@@ -177,7 +176,7 @@ describe('4. Public leaderboards never expose private financial fields', () => {
       const discovery = await bob.client.get('/api/competitions');
       expect(JSON.stringify(discovery.body)).not.toMatch(/balance|target|email|Hemlig/i);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });

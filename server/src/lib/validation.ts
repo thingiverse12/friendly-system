@@ -118,17 +118,17 @@ export interface RateLimitResult {
  * Fixed-window counter in SQLite. Counters are shared across the process (not per-worker memory),
  * so limits stay correct when the app is run behind multiple Node processes on the same DB file.
  */
-export function consumeRateLimit(db: Db, key: string, rule: RateLimitRule): RateLimitResult {
+export async function consumeRateLimit(db: Db, key: string, rule: RateLimitRule): Promise<RateLimitResult> {
   const windowMs = rule.windowMs;
   const windowStart = Math.floor(nowMs() / windowMs) * windowMs;
-  const row = db
+  const row = await db
     .prepare(
       `INSERT INTO rate_limits (key, window_start, count) VALUES (?, ?, 1)
-       ON CONFLICT(key, window_start) DO UPDATE SET count = count + 1
-       RETURNING count`,
+       ON CONFLICT (key, window_start) DO UPDATE SET count = rate_limits.count + 1
+       RETURNING rate_limits.count AS count`,
     )
-    .get(key, windowStart) as { count: number };
-  const count = row.count;
+    .get<{ count: number }>(key, windowStart);
+  const count = row?.count ?? 0;
   if (count > rule.limit) {
     return {
       allowed: false,

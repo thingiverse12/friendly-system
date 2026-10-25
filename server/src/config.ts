@@ -14,10 +14,15 @@ export const config = {
   isProduction,
   port: intEnv('PORT', 3000),
   host: process.env.HOST ?? '0.0.0.0',
-  /** Absolute path of the SQLite database file. */
-  databaseFile: process.env.DATABASE_FILE
-    ? path.resolve(process.env.DATABASE_FILE)
-    : path.resolve(process.cwd(), 'data', 'sparly.db'),
+  /** Supabase Postgres connection string (pooled). Required in production. */
+  databaseUrl: process.env.DATABASE_URL ?? null,
+  /** PGlite data directory used for local development when DATABASE_URL is absent. */
+  pgliteDir: process.env.PGLITE_DIR ?? path.resolve(process.cwd(), 'data', 'pglite'),
+  databaseSsl: process.env.DATABASE_SSL === '1',
+  databasePoolSize: intEnv('DATABASE_POOL_SIZE', 5),
+  supabaseUrl: process.env.SUPABASE_URL ?? null,
+  supabaseAnonKey: process.env.SUPABASE_ANON_KEY ?? null,
+  supabaseServiceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? null,
   webDist: process.env.WEB_DIST
     ? path.resolve(process.env.WEB_DIST)
     : path.resolve(process.cwd(), 'web', 'dist'),

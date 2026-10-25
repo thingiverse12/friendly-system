@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Link, Navigate, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
-import { api, ApiError } from '../api';
+import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
+import { ApiError } from '../api';
 import { useAuth } from '../auth';
 import { useToast } from '../toast';
 import { FjordScene, Logo } from '../components/Illustrations';
@@ -21,10 +21,9 @@ const COPY: Record<Mode, { title: string; lead: string; submit: string }> = {
 };
 
 export function AuthPage({ mode }: { mode: Mode }) {
-  const { status, login, register } = useAuth();
+  const { status, login, register, requestPasswordReset, updatePassword, configured } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [params] = useSearchParams();
   const { push } = useToast();
 
   const [email, setEmail] = useState('');
@@ -37,16 +36,15 @@ export function AuthPage({ mode }: { mode: Mode }) {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [notice, setNotice] = useState<string | null>(null);
-  const [resetLink, setResetLink] = useState<string | null>(null);
+  const [awaitingVerification, setAwaitingVerification] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const token = params.get('token') ?? '';
   const from = (location.state as { from?: string } | null)?.from;
 
   useEffect(() => {
     setError(null);
     setFieldErrors({});
     setNotice(null);
-    setResetLink(null);
+    setAwaitingVerification(null);
     setPassword('');
     setConfirmPassword('');
   }, [mode]);
@@ -86,38 +84,39 @@ export function AuthPage({ mode }: { mode: Mode }) {
           setError('Lösenorden matchar inte.');
           return;
         }
-        await register({
+        const outcome = await register({
           email: email.trim(),
           password,
           ...(alias.trim() ? { alias: alias.trim() } : {}),
           publicCompetitionConsent: consent,
-          acceptedTerms: true,
         });
-        push('Konto skapat. Välkommen till Sparly!', 'success');
-        navigate('/', { replace: true });
+        if (outcome === 'verify-email') {
+          setAwaitingVerification(email.trim());
+          setNotice(null);
+        } else {
+          push('Konto skapat. Välkommen till Sparly!', 'success');
+          navigate('/', { replace: true });
+        }
       } else if (mode === 'forgot') {
-        const result = await api.requestPasswordReset(email.trim());
-        setNotice(result.message);
-        if (result.devResetToken) {
-          setResetLink(`/aterstall-losenord?token=${encodeURIComponent(result.devResetToken)}`);
-        }
+        setNotice(await requestPasswordReset(email.trim()));
       } else {
-        if (!token) {
-          setError('Länken saknar en giltig token. Begär en ny återställningslänk.');
-          return;
-        }
         if (password !== confirmPassword) {
           setFieldErrors({ confirmPassword: 'Lösenorden matchar inte.' });
           setError('Lösenorden matchar inte.');
           return;
         }
-        const result = await api.resetPassword(token, password);
-        setNotice(result.message);
-        push('Lösenordet är uppdaterat. Logga in igen.', 'success');
-        window.setTimeout(() => navigate('/logga-in', { replace: true }), 1200);
+        await updatePassword(password);
+        setNotice('Lösenordet är uppdaterat. Du kan fortsätta till din översikt.');
+        push('Lösenordet är uppdaterat.', 'success');
+        window.setTimeout(() => navigate('/', { replace: true }), 1200);
       }
     } catch (caught) {
-      capture(caught);
+      const message = caught instanceof Error ? caught.message : 'Något gick fel. Försök igen.';
+      if (caught instanceof ApiError) {
+        capture(caught);
+      } else {
+        setError(message);
+      }
     } finally {
       setBusy(false);
     }
@@ -146,14 +145,15 @@ export function AuthPage({ mode }: { mode: Mode }) {
             <p className="auth__lead">{copy.lead}</p>
           </div>
 
+          {!configured ? (
+            <Banner tone="warning" title="Inloggningen saknar konfiguration" icon="shield">
+              Sätt VITE_SUPABASE_URL och VITE_SUPABASE_ANON_KEY för den här miljön, bygg om webben och ladda sidan igen.
+            </Banner>
+          ) : null}
+
           {notice ? (
             <Banner tone="success" title="Klart" icon="check">
               {notice}
-              {resetLink ? (
-                <p style={{ marginTop: 8 }}>
-                  <Link to={resetLink}>Öppna återställningslänken (utvecklingsläge)</Link>
-                </p>
-              ) : null}
             </Banner>
           ) : null}
 
@@ -164,6 +164,17 @@ export function AuthPage({ mode }: { mode: Mode }) {
             </div>
           ) : null}
 
+          {awaitingVerification ? (
+            <div className="stack">
+              <Banner tone="success" title="Bekräfta din e-post" icon="check">
+                Vi har skickat en bekräftelselänk till <strong>{awaitingVerification}</strong>. Öppna länken i mejlet för
+                att aktivera kontot — sedan kan du logga in här.
+              </Banner>
+              <Button variant="primary" className="btn--block" onClick={() => navigate('/logga-in', { replace: true })}>
+                Till inloggningen
+              </Button>
+            </div>
+          ) : (
           <form className="auth__form" onSubmit={onSubmit} noValidate>
             {mode !== 'reset' ? (
               <TextField
@@ -282,6 +293,7 @@ export function AuthPage({ mode }: { mode: Mode }) {
               {copy.submit}
             </Button>
           </form>
+          )}
 
           {mode === 'login' ? (
             <p className="auth__alt">

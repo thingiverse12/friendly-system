@@ -46,10 +46,10 @@ export function goalRoutes(db: Db): Router {
   const router = Router();
   router.use(requireAuth);
 
-  router.get('/', (req, res) => {
+  router.get('/', async (req, res) => {
     const userId = currentUserId(res);
     const query = parseQuery(listQuerySchema, req.query);
-    const goals = listGoals(db, userId, query.includeArchived === '1');
+    const goals = await listGoals(db, userId, query.includeArchived === '1');
     res.json({
       goals,
       totals: {
@@ -59,10 +59,10 @@ export function goalRoutes(db: Db): Router {
     });
   });
 
-  router.post('/', (req, res) => {
+  router.post('/', async (req, res) => {
     const userId = currentUserId(res);
     const input = parseBody(createGoalSchema, req.body);
-    const goal = createGoal(db, userId, {
+    const goal = await createGoal(db, userId, {
       name: input.name,
       targetAmountOre: input.targetAmountOre,
       privacy: input.privacy,
@@ -70,53 +70,53 @@ export function goalRoutes(db: Db): Router {
     res.status(201).json({ goal });
   });
 
-  router.get('/:goalId', (req, res) => {
+  router.get('/:goalId', async (req, res) => {
     const userId = currentUserId(res);
-    const goal = getOwnedGoal(db, userId, param(req, 'goalId'));
-    const view: GoalView = toGoalView(db, goal);
+    const goal = await getOwnedGoal(db, userId, param(req, 'goalId'));
+    const view: GoalView = await toGoalView(db, goal);
     res.json({
       goal: view,
-      movements: listMovements(db, userId, goal.id),
-      achievements: achievementCatalog(db, userId).catalog.filter((item) =>
+      movements: await listMovements(db, userId, goal.id),
+      achievements: (await achievementCatalog(db, userId)).catalog.filter((item) =>
         item.goals.some((award) => award.goalId === goal.id),
       ),
     });
   });
 
-  router.patch('/:goalId', (req, res) => {
+  router.patch('/:goalId', async (req, res) => {
     const userId = currentUserId(res);
     const input = parseBody(updateGoalSchema, req.body);
-    const goal = updateGoal(db, userId, param(req, 'goalId'), input);
+    const goal = await updateGoal(db, userId, param(req, 'goalId'), input);
     res.json({ goal });
   });
 
-  router.post('/:goalId/archive', (req, res) => {
+  router.post('/:goalId/archive', async (req, res) => {
     const userId = currentUserId(res);
-    const goal = setArchived(db, userId, param(req, 'goalId'), true);
+    const goal = await setArchived(db, userId, param(req, 'goalId'), true);
     res.json({ goal });
   });
 
-  router.post('/:goalId/unarchive', (req, res) => {
+  router.post('/:goalId/unarchive', async (req, res) => {
     const userId = currentUserId(res);
-    const goal = setArchived(db, userId, param(req, 'goalId'), false);
+    const goal = await setArchived(db, userId, param(req, 'goalId'), false);
     res.json({ goal });
   });
 
-  router.delete('/:goalId', (req, res) => {
+  router.delete('/:goalId', async (req, res) => {
     const userId = currentUserId(res);
-    deleteGoal(db, userId, param(req, 'goalId'));
+    await deleteGoal(db, userId, param(req, 'goalId'));
     res.json({ ok: true });
   });
 
-  router.get('/:goalId/movements', (req, res) => {
+  router.get('/:goalId/movements', async (req, res) => {
     const userId = currentUserId(res);
-    res.json({ movements: listMovements(db, userId, param(req, 'goalId')) });
+    res.json({ movements: await listMovements(db, userId, param(req, 'goalId')) });
   });
 
-  router.post('/:goalId/movements', (req, res) => {
+  router.post('/:goalId/movements', async (req, res) => {
     const userId = currentUserId(res);
     const input = parseBody(movementSchema, req.body);
-    const result = recordMovement(db, userId, param(req, 'goalId'), {
+    const result = await recordMovement(db, userId, param(req, 'goalId'), {
       type: input.type,
       amountOre: input.amountOre,
       note: input.note ?? null,

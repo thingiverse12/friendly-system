@@ -1,5 +1,4 @@
 import type { Db } from '../db.js';
-import { immediate } from '../db.js';
 import { badRequest, notFound } from '../lib/errors.js';
 import { uuid } from '../lib/ids.js';
 import { nowIso, nowMs } from '../lib/time.js';
@@ -31,19 +30,19 @@ export interface TransactionView {
 }
 
 const SELECT = `
-  SELECT t.id, t.type, t.amount_ore AS amountOre, t.category, t.description,
-         t.goal_id AS goalId, g.name AS goalName, t.occurred_at AS occurredAt, t.created_at AS createdAt
+  SELECT t.id, t.type, t.amount_ore AS "amountOre", t.category, t.description,
+         t.goal_id AS "goalId", g.name AS "goalName", t.occurred_at AS "occurredAt", t.created_at AS "createdAt"
   FROM transactions t LEFT JOIN savings_goals g ON g.id = t.goal_id AND g.owner_id = t.owner_id`;
 
-export function categoriesFor(type: 'income' | 'expense'): readonly string[] {
+export async function categoriesFor(type: 'income' | 'expense'): Promise<readonly string[]>{
   return type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 }
 
-export function assertCategory(type: 'income' | 'expense', category: string): void {
+export async function assertCategory(type: 'income' | 'expense', category: string): Promise<void>{
   if (!(ALL_CATEGORIES as readonly string[]).includes(category)) {
     throw badRequest(`Okänd kategori: ${category}`);
   }
-  if (!categoriesFor(type).includes(category)) {
+  if (!(await categoriesFor(type)).includes(category)) {
     throw badRequest(`Kategorin ${category} passar inte för ${type === 'income' ? 'inkomst' : 'utgift'}.`);
   }
 }
@@ -58,11 +57,11 @@ export interface ListFilter {
   offset: number;
 }
 
-export function listTransactions(
+export async function listTransactions(
   db: Db,
   userId: string,
   filter: ListFilter,
-): { items: TransactionView[]; total: number } {
+): Promise<{ items: TransactionView[]; total: number }> {
   const conditions = ['t.owner_id = ?'];
   const params: unknown[] = [userId];
   if (filter.type) {
@@ -87,10 +86,10 @@ export function listTransactions(
   }
   const where = conditions.join(' AND ');
   const total = (
-    db.prepare(`SELECT COUNT(*) AS count FROM transactions t WHERE ${where}`).get(...params) as { count: number }
+    await db.prepare(`SELECT COUNT(*) AS count FROM transactions t WHERE ${where}`).get(...params) as { count: number }
   ).count;
-  const items = db
-    .prepare(`${SELECT} WHERE ${where} ORDER BY t.occurred_at DESC, t.created_at DESC LIMIT ? OFFSET ?`)
+  const items = await db
+    .prepare(`${SELECT} WHERE ${where} ORDER BY t.occurred_at DESC, t.seq DESC LIMIT ? OFFSET ?`)
     .all(...params, filter.limit, filter.offset) as TransactionView[];
   return { items, total };
 }
@@ -104,13 +103,13 @@ export interface CreateTransactionInput {
   occurredAt?: string | undefined;
 }
 
-function assertGoalOwnership(db: Db, userId: string, goalId: string | null | undefined): void {
+async function assertGoalOwnership(db: Db, userId: string, goalId: string | null | undefined): Promise<void>{
   if (!goalId) return;
-  const row = db.prepare('SELECT id FROM savings_goals WHERE id = ? AND owner_id = ?').get(goalId, userId);
+  const row = await db.prepare('SELECT id FROM savings_goals WHERE id = ? AND owner_id = ?').get(goalId, userId);
   if (!row) throw notFound('Sparmålet hittades inte.');
 }
 
-function assertOccurredAt(occurredAt: string): void {
+async function assertOccurredAt(occurredAt: string): Promise<void>{
   const ms = Date.parse(occurredAt);
   if (Number.isNaN(ms)) throw badRequest('Ogiltigt datum.');
   if (ms > nowMs() + 24 * 3600_000) throw badRequest('Datumet kan inte ligga i framtiden.');
@@ -118,14 +117,14 @@ function assertOccurredAt(occurredAt: string): void {
 }
 
 /** Income and expenses are recorded here only. Income never touches savings balances. */
-export function createTransaction(db: Db, userId: string, input: CreateTransactionInput): TransactionView {
-  assertCategory(input.type, input.category);
-  assertGoalOwnership(db, userId, input.goalId);
+export async function createTransaction(db: Db, userId: string, input: CreateTransactionInput): Promise<TransactionView>{
+  await assertCategory(input.type, input.category);
+  await assertGoalOwnership(db, userId, input.goalId);
   const occurredAt = input.occurredAt ?? nowIso();
-  assertOccurredAt(occurredAt);
+  await assertOccurredAt(occurredAt);
   const id = uuid();
   const now = nowIso();
-  db.prepare(
+  await db.prepare(
     `INSERT INTO transactions (id, owner_id, goal_id, type, amount_ore, category, description, occurred_at, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
@@ -140,11 +139,11 @@ export function createTransaction(db: Db, userId: string, input: CreateTransacti
     now,
     now,
   );
-  return getTransaction(db, userId, id);
+  return await getTransaction(db, userId, id);
 }
 
-export function getTransaction(db: Db, userId: string, id: string): TransactionView {
-  const row = db.prepare(`${SELECT} WHERE t.id = ? AND t.owner_id = ?`).get(id, userId) as
+export async function getTransaction(db: Db, userId: string, id: string): Promise<TransactionView>{
+  const row = await db.prepare(`${SELECT} WHERE t.id = ? AND t.owner_id = ?`).get(id, userId) as
     | TransactionView
     | undefined;
   // 404 for other users' transactions: their existence is not disclosed.
@@ -161,25 +160,25 @@ export interface UpdateTransactionInput {
   occurredAt?: string | undefined;
 }
 
-export function updateTransaction(
+export async function updateTransaction(
   db: Db,
   userId: string,
   id: string,
   input: UpdateTransactionInput,
-): TransactionView {
-  return immediate(db, () => {
-    const existing = db.prepare('SELECT * FROM transactions WHERE id = ? AND owner_id = ?').get(id, userId) as
+): Promise<TransactionView>{
+  return await db.tx(async () => {
+    const existing = await db.prepare('SELECT * FROM transactions WHERE id = ? AND owner_id = ?').get(id, userId) as
       | TransactionRow
       | undefined;
     if (!existing) throw notFound('Transaktionen hittades inte.');
     const type = input.type ?? existing.type;
     const category = input.category ?? existing.category;
-    if (input.type !== undefined || input.category !== undefined) assertCategory(type, category);
+    if (input.type !== undefined || input.category !== undefined) await assertCategory(type, category);
     const goalId = input.goalId === undefined ? existing.goal_id : input.goalId;
-    assertGoalOwnership(db, userId, goalId);
+    await assertGoalOwnership(db, userId, goalId);
     const occurredAt = input.occurredAt ?? existing.occurred_at;
-    if (input.occurredAt) assertOccurredAt(occurredAt);
-    db.prepare(
+    if (input.occurredAt) await assertOccurredAt(occurredAt);
+    await db.prepare(
       `UPDATE transactions SET goal_id = ?, type = ?, amount_ore = ?, category = ?, description = ?,
         occurred_at = ?, updated_at = ? WHERE id = ? AND owner_id = ?`,
     ).run(
@@ -193,13 +192,13 @@ export function updateTransaction(
       id,
       userId,
     );
-    return getTransaction(db, userId, id);
+    return await getTransaction(db, userId, id);
   });
 }
 
-export function deleteTransaction(db: Db, userId: string, id: string): void {
-  const result = db.prepare('DELETE FROM transactions WHERE id = ? AND owner_id = ?').run(id, userId);
-  if (result.changes === 0) throw notFound('Transaktionen hittades inte.');
+export async function deleteTransaction(db: Db, userId: string, id: string): Promise<void>{
+  const result = await db.prepare('DELETE FROM transactions WHERE id = ? AND owner_id = ?').run(id, userId);
+  if (result === 0) throw notFound('Transaktionen hittades inte.');
 }
 
 export interface MonthlySummary {
@@ -209,8 +208,8 @@ export interface MonthlySummary {
   byCategory: Array<{ category: string; type: 'income' | 'expense'; totalOre: number }>;
 }
 
-export function monthlySummary(db: Db, userId: string, from: string, to: string): MonthlySummary {
-  const totals = db
+export async function monthlySummary(db: Db, userId: string, from: string, to: string): Promise<MonthlySummary>{
+  const totals = await db
     .prepare(
       `SELECT
          COALESCE(SUM(CASE WHEN type = 'income' THEN amount_ore ELSE 0 END), 0) AS income,
@@ -218,11 +217,11 @@ export function monthlySummary(db: Db, userId: string, from: string, to: string)
        FROM transactions WHERE owner_id = ? AND occurred_at >= ? AND occurred_at <= ?`,
     )
     .get(userId, from, to) as { income: number; expense: number };
-  const byCategory = db
+  const byCategory = await db
     .prepare(
-      `SELECT category, type, SUM(amount_ore) AS totalOre FROM transactions
+      `SELECT category, type, SUM(amount_ore) AS "totalOre" FROM transactions
        WHERE owner_id = ? AND occurred_at >= ? AND occurred_at <= ?
-       GROUP BY category, type ORDER BY totalOre DESC`,
+       GROUP BY category, type ORDER BY "totalOre" DESC`,
     )
     .all(userId, from, to) as Array<{ category: string; type: 'income' | 'expense'; totalOre: number }>;
   return {

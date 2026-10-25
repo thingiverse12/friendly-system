@@ -50,7 +50,7 @@ describe('Exact money arithmetic', () => {
 
 describe('6. Invalid monetary amounts are rejected', () => {
   it('rejects bad amounts on goals, movements and transactions', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const { client } = await signup(harness.app, 'amounts@example.com');
       for (const amount of [0, -1, -50000, 12.5, Number.NaN, 1e20, 999_999_999_999_999]) {
@@ -87,14 +87,14 @@ describe('6. Invalid monetary amounts are rejected', () => {
       });
       expect(unknownCategory.status).toBe(422);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });
 
 describe('7. Deposits and withdrawals update balances correctly', () => {
   it('updates the goal balance and appends to the savings ledger', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const { client } = await signup(harness.app, 'balance@example.com');
       const goal = await createGoal(client, 'Buffert', 1_000_000);
@@ -122,27 +122,26 @@ describe('7. Deposits and withdrawals update balances correctly', () => {
       expect(movements[1]!.type).toBe('deposit');
 
       // Ledger and balance agree, and the balance is stored as an integer.
-      const ledger = harness.db
-        .prepare(
+      const ledger = await harness.db.prepare(
           `SELECT COALESCE(SUM(CASE WHEN type = 'deposit' THEN amount_ore ELSE -amount_ore END), 0) AS total
            FROM savings_movements WHERE goal_id = ?`,
         )
         .get(goal.id) as { total: number };
       expect(ledger.total).toBe(375_000);
-      const stored = harness.db.prepare('SELECT balance_ore AS balance FROM savings_goals WHERE id = ?').get(goal.id) as {
+      const stored = await harness.db.prepare('SELECT balance_ore AS balance FROM savings_goals WHERE id = ?').get(goal.id) as {
         balance: number;
       };
       expect(Number.isInteger(stored.balance)).toBe(true);
       expect(stored.balance).toBe(375_000);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });
 
 describe('8. Income does not automatically count as savings', () => {
   it('keeps transactions out of savings balances and ledgers', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const { client } = await signup(harness.app, 'income@example.com');
       const goal = await createGoal(client, 'Semester', 2_000_000);
@@ -162,8 +161,7 @@ describe('8. Income does not automatically count as savings', () => {
       expect(dashboard.body.totals.savedOre).toBe(0);
       expect(dashboard.body.month.incomeOre).toBe(2_850_000);
 
-      const movementCount = harness.db
-        .prepare('SELECT COUNT(*) AS count FROM savings_movements WHERE owner_id = (SELECT id FROM users WHERE email = ?)')
+      const movementCount = await harness.db.prepare('SELECT COUNT(*) AS count FROM savings_movements WHERE owner_id = (SELECT id FROM users WHERE email = ?)')
         .get('income@example.com') as { count: number };
       expect(movementCount.count).toBe(0);
 
@@ -173,7 +171,7 @@ describe('8. Income does not automatically count as savings', () => {
       expect(after.body.totals.savedOre).toBe(200_000);
       expect(after.body.month.incomeOre).toBe(2_850_000);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });

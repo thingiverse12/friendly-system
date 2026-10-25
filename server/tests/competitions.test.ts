@@ -17,19 +17,19 @@ async function setup(app: Parameters<typeof signup>[0], email: string, alias: st
 
 describe('9. Locked goals cannot change target during an active competition', () => {
   it('rejects target changes, archiving and deletion while a competition is active', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const { client } = await setup(harness.app, 'lock@example.com', 'las_anvandare');
       const goal = await createGoal(client, 'Låst mål', 500_000);
       await deposit(client, goal.id, 100_000);
 
-      const competition = createCompetition(harness.db, {
+      const competition = await createCompetition(harness.db, {
         name: '7-dagars spartävling',
         durationDays: 7,
         visibility: 'public',
         startsAt: toIso(FIXED_NOW),
       });
-      syncCompetitionLifecycle(harness.db);
+      await syncCompetitionLifecycle(harness.db);
       const joined = await client.post(`/api/competitions/${competition.id}/join`, { goalId: goal.id });
       expect(joined.status).toBe(201);
 
@@ -51,14 +51,14 @@ describe('9. Locked goals cannot change target during an active competition', ()
       const unlocked = await client.patch(`/api/goals/${goal.id}`, { targetAmountOre: 700_000 });
       expect(unlocked.status).toBe(200);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });
 
 describe('10. Competition scoring follows the specified formula', () => {
   it('scores 100 × (current − starting) / locked target, allows negatives and shared ranks', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const alice = await setup(harness.app, 'score-a@example.com', 'poang_alice');
       const bob = await setup(harness.app, 'score-b@example.com', 'poang_bob');
@@ -68,13 +68,13 @@ describe('10. Competition scoring follows the specified formula', () => {
       await deposit(alice.client, aliceGoal.id, 100_000);
       await deposit(bob.client, bobGoal.id, 100_000);
 
-      const competition = createCompetition(harness.db, {
+      const competition = await createCompetition(harness.db, {
         name: 'Poängprov',
         durationDays: 7,
         visibility: 'public',
         startsAt: toIso(FIXED_NOW),
       });
-      syncCompetitionLifecycle(harness.db);
+      await syncCompetitionLifecycle(harness.db);
       expect((await alice.client.post(`/api/competitions/${competition.id}/join`, { goalId: aliceGoal.id })).status).toBe(201);
       expect((await bob.client.post(`/api/competitions/${competition.id}/join`, { goalId: bobGoal.id })).status).toBe(201);
 
@@ -106,43 +106,43 @@ describe('10. Competition scoring follows the specified formula', () => {
       board = await alice.client.get(`/api/competitions/${competition.id}/leaderboard`);
       expect(board.body.entries.find((entry: { isYou: boolean }) => entry.isYou).score).toBe(-10);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });
 
 describe('11. Historical savings do not generate competition points', () => {
   it('ignores savings made before the competition starts', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const alice = await setup(harness.app, 'history@example.com', 'historik_alice');
       const goal = await createGoal(alice.client, 'Buffert', 1_000_000);
       await deposit(alice.client, goal.id, 300_000);
 
-      const competition = createCompetition(harness.db, {
+      const competition = await createCompetition(harness.db, {
         name: 'Historikprov',
         durationDays: 7,
         visibility: 'public',
         startsAt: toIso(FIXED_NOW),
       });
-      syncCompetitionLifecycle(harness.db);
+      await syncCompetitionLifecycle(harness.db);
       expect((await alice.client.post(`/api/competitions/${competition.id}/join`, { goalId: goal.id })).status).toBe(201);
 
       const board = await alice.client.get(`/api/competitions/${competition.id}/leaderboard`);
       expect(board.body.entries[0]!.score).toBe(0);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 
   it('snapshots upcoming competitions at the moment the server starts them', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const alice = await setup(harness.app, 'upcoming@example.com', 'kommande_alice');
       const goal = await createGoal(alice.client, 'Framtidsmål', 1_000_000);
       await deposit(alice.client, goal.id, 100_000);
 
-      const competition = createCompetition(harness.db, {
+      const competition = await createCompetition(harness.db, {
         name: 'Framtida tävling',
         durationDays: 7,
         visibility: 'public',
@@ -167,29 +167,28 @@ describe('11. Historical savings do not generate competition points', () => {
       const after = await alice.client.get(`/api/competitions/${competition.id}/leaderboard`);
       expect(after.body.entries[0]!.score).toBe(10);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });
 
 describe('12. Clients cannot modify locked snapshots or final scores', () => {
   it('blocks score submission, snapshot edits and final result changes', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const alice = await setup(harness.app, 'immutable@example.com', 'last_alice');
       const goal = await createGoal(alice.client, 'Orubbligt mål', 400_000);
       await deposit(alice.client, goal.id, 100_000);
 
-      const competition = createCompetition(harness.db, {
+      const competition = await createCompetition(harness.db, {
         name: 'Låstävling',
         durationDays: 7,
         visibility: 'public',
         startsAt: toIso(FIXED_NOW),
       });
-      syncCompetitionLifecycle(harness.db);
+      await syncCompetitionLifecycle(harness.db);
       await alice.client.post(`/api/competitions/${competition.id}/join`, { goalId: goal.id });
-      const participant = harness.db
-        .prepare('SELECT * FROM competition_participants WHERE competition_id = ?')
+      const participant = await harness.db.prepare('SELECT * FROM competition_participants WHERE competition_id = ?')
         .get(competition.id) as {
         id: string;
         last_message?: string;
@@ -204,14 +203,9 @@ describe('12. Clients cannot modify locked snapshots or final scores', () => {
       ).toBe(404);
 
       // Even a direct SQL update cannot rewrite a frozen snapshot.
-      expect(() =>
-        harness.db
-          .prepare('UPDATE competition_participants SET starting_balance_ore = 0 WHERE id = ?')
-          .run(participant.id),
-      ).toThrow(/locked_snapshot_immutable/);
-      expect(() =>
-        harness.db.prepare('UPDATE competition_participants SET locked_target_ore = 1 WHERE id = ?').run(participant.id),
-      ).toThrow(/locked_snapshot_immutable/);
+      await expect(harness.db.prepare('UPDATE competition_participants SET starting_balance_ore = 0 WHERE id = ?')
+          .run(participant.id),).rejects.toThrow(/locked_snapshot_immutable/);
+      await expect(harness.db.prepare('UPDATE competition_participants SET locked_target_ore = 1 WHERE id = ?').run(participant.id),).rejects.toThrow(/locked_snapshot_immutable/);
 
       // Finish the competition: final scores and ranks are frozen.
       await deposit(alice.client, goal.id, 40_000);
@@ -221,60 +215,52 @@ describe('12. Clients cannot modify locked snapshots or final scores', () => {
       expect(finished.body.entries[0]!.score).toBe(10);
       expect(finished.body.entries[0]!.rank).toBe(1);
 
-      expect(() =>
-        harness.db.prepare('UPDATE competition_participants SET final_score_centi = 99999 WHERE id = ?').run(participant.id),
-      ).toThrow(/final_score_immutable/);
-      expect(() =>
-        harness.db.prepare("UPDATE competitions SET starts_at = '2030-01-01T00:00:00.000Z' WHERE id = ?").run(competition.id),
-      ).toThrow(/competition_finalised/);
+      await expect(harness.db.prepare('UPDATE competition_participants SET final_score_centi = 99999 WHERE id = ?').run(participant.id),).rejects.toThrow(/final_score_immutable/);
+      await expect(harness.db.prepare("UPDATE competitions SET starts_at = '2030-01-01T00:00:00.000Z' WHERE id = ?").run(competition.id),).rejects.toThrow(/competition_finalised/);
 
       // Late joiners are rejected.
       const late = await setup(harness.app, 'late@example.com', 'sen_anvandare');
       const lateGoal = await createGoal(late.client, 'Sent mål', 400_000);
       expect((await late.client.post(`/api/competitions/${competition.id}/join`, { goalId: lateGoal.id })).status).toBe(409);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });
 
 describe('13. Duplicate competition membership is rejected', () => {
   it('rejects a second participation from the same user', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const alice = await setup(harness.app, 'dupe@example.com', 'dubbel_alice');
       const firstGoal = await createGoal(alice.client, 'Mål ett', 300_000);
       const secondGoal = await createGoal(alice.client, 'Mål två', 300_000);
 
-      const competition = createCompetition(harness.db, {
+      const competition = await createCompetition(harness.db, {
         name: 'Dubbelprov',
         durationDays: 7,
         visibility: 'public',
         startsAt: toIso(FIXED_NOW),
       });
-      syncCompetitionLifecycle(harness.db);
+      await syncCompetitionLifecycle(harness.db);
 
       expect((await alice.client.post(`/api/competitions/${competition.id}/join`, { goalId: firstGoal.id })).status).toBe(201);
       const duplicate = await alice.client.post(`/api/competitions/${competition.id}/join`, { goalId: secondGoal.id });
       expect(duplicate.status).toBe(409);
       expect(duplicate.body.error.message).toMatch(/redan/i);
 
-      const count = harness.db
-        .prepare('SELECT COUNT(*) AS count FROM competition_participants WHERE competition_id = ?')
+      const count = await harness.db.prepare('SELECT COUNT(*) AS count FROM competition_participants WHERE competition_id = ?')
         .get(competition.id) as { count: number };
       expect(count.count).toBe(1);
 
-      expect(() =>
-        harness.db
-          .prepare(
+      await expect(harness.db.prepare(
             `INSERT INTO competition_participants
                (id, competition_id, user_id, goal_id, starting_balance_ore, locked_target_ore, class_code, joined_at)
              VALUES (?, ?, (SELECT user_id FROM competition_participants LIMIT 1), ?, 0, 300000, '', ?)`,
           )
-          .run('dup-id', competition.id, secondGoal.id, toIso(FIXED_NOW)),
-      ).toThrow(/UNIQUE/);
+          .run('aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee', competition.id, secondGoal.id, toIso(FIXED_NOW)),).rejects.toThrow(/duplicate key|UNIQUE/i);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });

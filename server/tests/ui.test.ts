@@ -44,7 +44,7 @@ describe('18. The application works on mobile and desktop (static + delivery che
       expect(true).toBe(true);
       return;
     }
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const request = (await import('supertest')).default;
       for (const route of ['/', '/mal', '/transaktioner', '/bedrifter', '/profil']) {
@@ -61,7 +61,7 @@ describe('18. The application works on mobile and desktop (static + delivery che
       expect(health.status).toBe(200);
       expect(health.body.status).toBe('ok');
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });

@@ -1,36 +1,43 @@
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import type { Express } from 'express';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
-import { openDatabase, type Db } from '../src/db.js';
+import { createPgliteDatabase, migrate, type Db } from '../src/db.js';
+import { createTestAuthProvider } from '../src/services/supabase.js';
+import { sha256 } from '../src/lib/ids.js';
 
 export interface Harness {
   db: Db;
   app: Express;
-  file: string | null;
-  close: () => void;
+  close: () => Promise<void>;
 }
 
 let counter = 0;
 
-export function createHarness(options: { file?: boolean } = {}): Harness {
-  if (options.file) {
-    const file = path.join(os.tmpdir(), `sparly-test-${process.pid}-${(counter += 1)}-${Date.now()}.db`);
-    const db = openDatabase(file);
-    return {
-      db,
-      app: createApp(db),
-      file,
-      close: () => {
-        db.close();
-        for (const suffix of ['', '-wal', '-shm']) fs.rmSync(`${file}${suffix}`, { force: true });
-      },
-    };
-  }
-  const db = openDatabase(':memory:');
-  return { db, app: createApp(db), file: null, close: () => db.close() };
+/**
+ * Tests run against PGlite: the real Postgres engine, in-process. The same migrations and the same
+ * SQL as Supabase, so schema rules (FK/CHECK/triggers) are exercised for real.
+ */
+export async function createHarness(): Promise<Harness> {
+  const db = await createPgliteDatabase('memory://');
+  await migrate(db);
+  const app = createApp(db, createTestAuthProvider());
+  return {
+    db,
+    app,
+    close: async () => {
+      await db.close();
+    },
+  };
+}
+
+/** Deterministic Supabase-style user id per e-mail, so register/login describe the same identity. */
+export function identityFor(email: string): string {
+  const hex = sha256(email.toLowerCase());
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
+export function tokenFor(email: string): string {
+  return `test:${identityFor(email)}:${email.toLowerCase()}`;
 }
 
 export interface TestClient {
@@ -38,6 +45,7 @@ export interface TestClient {
   csrf: string;
   ip: string;
   init: () => Promise<TestClient>;
+  /** Signs in through the Supabase token exchange (the only login path in the app). */
   register: (email: string, extra?: Record<string, unknown>, password?: string) => Promise<any>;
   login: (email: string, password?: string) => Promise<any>;
   get: (url: string) => request.Test;
@@ -51,6 +59,18 @@ export function client(app: Express): TestClient {
   const agent = request.agent(app);
   const ip = `10.10.${(counter % 200) + 1}.${(counter % 250) + 1}`;
   const withIp = <T extends request.Test>(test: T): T => test.set('x-forwarded-for', ip);
+
+  const exchange = async (email: string, extra: Record<string, unknown>) => {
+    const response = await withIp(agent.post('/api/auth/session'))
+      .set('x-csrf-token', api.csrf)
+      .send({ accessToken: tokenFor(email), ...extra });
+    if (response.status !== 200 && response.status !== 201) {
+      throw new Error(`session exchange failed: ${response.status} ${JSON.stringify(response.body)}`);
+    }
+    api.csrf = response.body.csrfToken;
+    return response.body.user;
+  };
+
   const api: TestClient = {
     agent,
     csrf: '',
@@ -60,25 +80,11 @@ export function client(app: Express): TestClient {
       api.csrf = response.body.csrfToken;
       return api;
     },
-    async register(email, extra = {}, password = 'Lösenord12345') {
-      const response = await withIp(agent.post('/api/auth/register'))
-        .set('x-csrf-token', api.csrf)
-        .send({ email, password, acceptedTerms: true, ...extra });
-      if (response.status !== 201) {
-        throw new Error(`register failed: ${response.status} ${JSON.stringify(response.body)}`);
-      }
-      api.csrf = response.body.csrfToken;
-      return response.body.user;
+    async register(email, extra = {}) {
+      return exchange(email, extra);
     },
-    async login(email, password = 'Lösenord12345') {
-      const response = await withIp(agent.post('/api/auth/login'))
-        .set('x-csrf-token', api.csrf)
-        .send({ email, password });
-      if (response.status !== 200) {
-        throw new Error(`login failed: ${response.status} ${JSON.stringify(response.body)}`);
-      }
-      api.csrf = response.body.csrfToken;
-      return response.body.user;
+    async login(email) {
+      return exchange(email, {});
     },
     get(url) {
       return withIp(agent.get(url));
@@ -106,11 +112,7 @@ export async function signup(
   return { client: api, user };
 }
 
-export async function createGoal(
-  api: TestClient,
-  name: string,
-  targetAmountOre: number,
-): Promise<any> {
+export async function createGoal(api: TestClient, name: string, targetAmountOre: number): Promise<any> {
   const response = await api.post('/api/goals', { name, targetAmountOre });
   if (response.status !== 201) throw new Error(`goal failed ${response.status} ${JSON.stringify(response.body)}`);
   return response.body.goal;

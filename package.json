@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Sparly \u2013 standalone savings app with goals, achievements and competitions",
+  "description": "Sparly – standalone savings app with goals, achievements and competitions",
   "engines": {
     "node": ">=20"
   },
@@ -19,7 +19,6 @@
     "typecheck": "npm run typecheck:server && npm run typecheck:web",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed:demo": "tsx scripts/seed-demo.ts",
     "typecheck:server": "tsc -p server/tsconfig.json --noEmit",
     "typecheck:web": "tsc -p web/tsconfig.json --noEmit",
     "check:schema": "tsx scripts/check-schema.mts"

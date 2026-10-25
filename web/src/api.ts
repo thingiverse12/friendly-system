@@ -106,45 +106,29 @@ export const api = {
   me: () => request<MeResponse>('/auth/me'),
   csrf: () => request<{ csrfToken: string }>('/auth/csrf'),
 
-  register: (body: {
-    email: string;
-    password: string;
+  /**
+   * Exchanges a Supabase access token for an app session. The only login path: credentials never
+   * travel to this API.
+   */
+  session: (body: {
+    accessToken: string;
     alias?: string;
     timezone?: string;
     publicCompetitionConsent?: boolean;
     shareBadges?: boolean;
-    acceptedTerms: true;
-  }) => request<{ user: User; csrfToken: string }>('/auth/register', { method: 'POST', body }),
-
-  login: (body: { email: string; password: string }) =>
-    request<{ user: User; csrfToken: string }>('/auth/login', { method: 'POST', body }),
+  }) => request<{ user: User; csrfToken: string; created: boolean }>('/auth/session', { method: 'POST', body }),
 
   logout: () => request<{ ok: boolean; csrfToken: string }>('/auth/logout', { method: 'POST' }),
-
-  requestPasswordReset: (email: string) =>
-    request<{ ok: boolean; message: string; devResetToken?: string; expiresAt?: string }>('/auth/password/request', {
-      method: 'POST',
-      body: { email },
-    }),
-
-  resetPassword: (token: string, password: string) =>
-    request<{ ok: boolean; message: string }>('/auth/password/reset', { method: 'POST', body: { token, password } }),
-
-  changePassword: (currentPassword: string, newPassword: string) =>
-    request<{ ok: boolean; message: string; csrfToken: string }>('/auth/password/change', {
-      method: 'POST',
-      body: { currentPassword, newPassword },
-    }),
 
   profile: () => request<{ user: User; stats: ProfileStats }>('/profile'),
 
   updateProfile: (body: Partial<{ alias: string; timezone: string; publicCompetitionConsent: boolean; shareBadges: boolean }>) =>
     request<{ user: User }>('/profile', { method: 'PATCH', body }),
 
-  deleteAccount: (password: string, confirmation: string) =>
+  deleteAccount: (confirmation: string, accessToken: string) =>
     request<{ ok: boolean; message: string }>('/profile/account', {
       method: 'DELETE',
-      body: { password, confirmation },
+      body: { confirmation, accessToken },
     }),
 
   dashboard: () => request<DashboardData>('/dashboard'),

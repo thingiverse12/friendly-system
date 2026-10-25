@@ -56,10 +56,10 @@ export function transactionRoutes(db: Db): Router {
   const router = Router();
   router.use(requireAuth);
 
-  router.get('/', (req, res) => {
+  router.get('/', async (req, res) => {
     const userId = currentUserId(res);
     const query = parseQuery(listQuerySchema, req.query);
-    const result = listTransactions(db, userId, {
+    const result = await listTransactions(db, userId, {
       type: query.type,
       category: query.category,
       goalId: query.goalId,
@@ -71,7 +71,7 @@ export function transactionRoutes(db: Db): Router {
     res.json(result);
   });
 
-  router.get('/summary', (req, res) => {
+  router.get('/summary', async (req, res) => {
     const userId = currentUserId(res);
     const query = parseQuery(summaryQuerySchema, req.query);
     const reference = query.month ? `${query.month}-01T00:00:00.000Z` : nowIso();
@@ -81,14 +81,14 @@ export function transactionRoutes(db: Db): Router {
     res.json({ month: from.slice(0, 7), ...monthlySummary(db, userId, from, to) });
   });
 
-  router.get('/categories', (req, res) => {
+  router.get('/categories', async (req, res) => {
     res.json({ categories: ALL_CATEGORIES });
   });
 
-  router.post('/', (req, res) => {
+  router.post('/', async (req, res) => {
     const userId = currentUserId(res);
     const input = parseBody(createSchema, req.body);
-    const transaction = createTransaction(db, userId, {
+    const transaction = await createTransaction(db, userId, {
       type: input.type,
       amountOre: input.amountOre,
       category: input.category,
@@ -99,21 +99,21 @@ export function transactionRoutes(db: Db): Router {
     res.status(201).json({ transaction });
   });
 
-  router.get('/:transactionId', (req, res) => {
+  router.get('/:transactionId', async (req, res) => {
     const userId = currentUserId(res);
-    res.json({ transaction: getTransaction(db, userId, param(req, 'transactionId')) });
+    res.json({ transaction: await getTransaction(db, userId, param(req, 'transactionId')) });
   });
 
-  router.patch('/:transactionId', (req, res) => {
+  router.patch('/:transactionId', async (req, res) => {
     const userId = currentUserId(res);
     const input = parseBody(updateSchema, req.body);
-    const transaction = updateTransaction(db, userId, param(req, 'transactionId'), input);
+    const transaction = await updateTransaction(db, userId, param(req, 'transactionId'), input);
     res.json({ transaction });
   });
 
-  router.delete('/:transactionId', (req, res) => {
+  router.delete('/:transactionId', async (req, res) => {
     const userId = currentUserId(res);
-    deleteTransaction(db, userId, param(req, 'transactionId'));
+    await deleteTransaction(db, userId, param(req, 'transactionId'));
     res.json({ ok: true });
   });
 

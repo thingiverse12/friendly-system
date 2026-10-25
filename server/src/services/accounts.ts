@@ -1,18 +1,18 @@
 import type { Db } from '../db.js';
-import { audit, immediate } from '../db.js';
-import { conflict, forbidden, notFound, unauthorized } from '../lib/errors.js';
-import { hashPassword, verifyDummy, verifyPassword } from '../lib/password.js';
+import { audit } from '../db.js';
+import { conflict, notFound, unauthorized } from '../lib/errors.js';
 import { normalizeAlias, randomAlias, uuid } from '../lib/ids.js';
 import { nowIso } from '../lib/time.js';
 import { levelFor } from './achievements.js';
 import { revokeAllSessions } from './sessions.js';
+import type { SupabaseIdentity } from './supabase.js';
 
 export interface UserRow {
   id: string;
   email: string;
-  password_hash: string;
+  email_verified: number;
   created_at: string;
-  deleted_at: string | null;
+  updated_at: string;
 }
 
 export interface ProfileRow {
@@ -39,21 +39,19 @@ export interface PublicUser {
   };
 }
 
-export function getUserById(db: Db, userId: string): UserRow {
-  const user = db.prepare('SELECT * FROM users WHERE id = ? AND deleted_at IS NULL').get(userId) as
-    | UserRow
-    | undefined;
+export async function getUserById(db: Db, userId: string): Promise<UserRow> {
+  const user = await db.one<UserRow>('SELECT * FROM users WHERE id = $1', [userId]);
   if (!user) throw unauthorized();
   return user;
 }
 
-export function getProfile(db: Db, userId: string): ProfileRow {
-  const profile = db.prepare('SELECT * FROM profiles WHERE user_id = ?').get(userId) as ProfileRow | undefined;
+export async function getProfile(db: Db, userId: string): Promise<ProfileRow> {
+  const profile = await db.one<ProfileRow>('SELECT * FROM profiles WHERE user_id = $1', [userId]);
   if (!profile) throw notFound('Profilen hittades inte.');
   return profile;
 }
 
-export function toPublicUser(user: UserRow, profile: ProfileRow): PublicUser {
+export async function toPublicUser(user: UserRow, profile: ProfileRow): Promise<PublicUser> {
   return {
     id: user.id,
     email: user.email,
@@ -68,80 +66,90 @@ export function toPublicUser(user: UserRow, profile: ProfileRow): PublicUser {
   };
 }
 
-export function aliasTaken(db: Db, alias: string, exceptUserId?: string): boolean {
+export async function aliasTaken(db: Db, alias: string, exceptUserId?: string): Promise<boolean> {
   const normalized = normalizeAlias(alias);
-  const row = db
-    .prepare('SELECT user_id FROM profiles WHERE alias_normalized = ? AND (? IS NULL OR user_id <> ?)')
-    .get(normalized, exceptUserId ?? null, exceptUserId ?? null) as { user_id: string } | undefined;
+  const row = await db.one(
+    'SELECT user_id FROM profiles WHERE alias_normalized = $1 AND ($2::uuid IS NULL OR user_id <> $2::uuid)',
+    [normalized, exceptUserId ?? null],
+  );
   return Boolean(row);
 }
 
-export function uniqueSuggestion(db: Db): string {
+export async function uniqueSuggestion(db: Db): Promise<string> {
   for (let attempt = 0; attempt < 20; attempt += 1) {
     const candidate = randomAlias();
-    if (!aliasTaken(db, candidate)) return candidate;
+    if (!(await aliasTaken(db, candidate))) return candidate;
   }
   return `sparlygd_${uuid().slice(0, 8)}`;
 }
 
-export interface RegisterInput {
-  email: string;
-  password: string;
+export interface ProvisionInput {
   alias?: string | undefined;
   timezone?: string | undefined;
   publicCompetitionConsent?: boolean | undefined;
   shareBadges?: boolean | undefined;
 }
 
-export async function registerUser(
+/**
+ * Maps a verified Supabase identity onto the app's own user row. Credentials live in Supabase Auth;
+ * this record only carries the data Sparly needs (e-mail for contact, profile, finance).
+ */
+export async function provisionUserFromSupabase(
   db: Db,
-  input: RegisterInput,
-): Promise<{ user: PublicUser; userId: string }> {
-  const existing = db.prepare('SELECT id FROM users WHERE email = ?').get(input.email) as { id: string } | undefined;
-  if (existing) throw conflict('Det finns redan ett konto med den e-postadressen.');
-  const alias = input.alias ?? uniqueSuggestion(db);
-  if (aliasTaken(db, alias)) throw conflict('Aliaset är upptaget. Välj ett annat.');
-
-  const passwordHash = await hashPassword(input.password);
-  const userId = uuid();
-  const now = nowIso();
-  immediate(db, () => {
-    db.prepare(
-      `INSERT INTO users (id, email, password_hash, password_algo, created_at, updated_at)
-       VALUES (?, ?, ?, 'argon2id', ?, ?)`,
-    ).run(userId, input.email, passwordHash, now, now);
-    db.prepare(
-      `INSERT INTO profiles (user_id, alias, alias_normalized, timezone, public_competition_consent, share_badges, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(
-      userId,
-      alias,
-      normalizeAlias(alias),
-      input.timezone ?? 'Europe/Stockholm',
-      input.publicCompetitionConsent ? 1 : 0,
-      input.shareBadges ? 1 : 0,
-      now,
-      now,
-    );
-    audit(db, 'account.registered', userId, null, { consent: Boolean(input.publicCompetitionConsent) });
-  });
-  return {
-    user: toPublicUser(getUserById(db, userId), getProfile(db, userId)),
-    userId,
-  };
-}
-
-export async function authenticate(db: Db, email: string, password: string): Promise<UserRow> {
-  const user = db.prepare('SELECT * FROM users WHERE email = ? AND deleted_at IS NULL').get(email) as
-    | UserRow
-    | undefined;
-  if (!user) {
-    await verifyDummy(password);
-    throw unauthorized('E-post eller lösenord stämmer inte.');
+  identity: SupabaseIdentity,
+  input: ProvisionInput = {},
+): Promise<{ user: PublicUser; created: boolean }> {
+  const existing = await db.one<UserRow>('SELECT * FROM users WHERE id = $1', [identity.id]);
+  if (existing) {
+    if (existing.email !== identity.email || existing.email_verified !== (identity.emailVerified ? 1 : 0)) {
+      await db.run('UPDATE users SET email = $1, email_verified = $2, updated_at = $3 WHERE id = $4', [
+        identity.email,
+        identity.emailVerified ? 1 : 0,
+        nowIso(),
+        identity.id,
+      ]);
+    }
+    const profile = await getProfile(db, identity.id);
+    return { user: await toPublicUser(await getUserById(db, identity.id), profile), created: false };
   }
-  const ok = await verifyPassword(user.password_hash, password);
-  if (!ok) throw unauthorized('E-post eller lösenord stämmer inte.');
-  return user;
+
+  // A deleted account may leave the e-mail behind in an audit row; free the unique constraint first.
+  const emailClash = await db.one<{ id: string }>('SELECT id FROM users WHERE email = $1', [identity.email]);
+  if (emailClash) throw conflict('Det finns redan ett konto med den e-postadressen.');
+
+  const alias = input.alias ?? (await uniqueSuggestion(db));
+  if (await aliasTaken(db, alias)) throw conflict('Aliaset är upptaget. Välj ett annat.');
+  const now = nowIso();
+
+  await db.tx(async (tx) => {
+    await tx.run(
+      `INSERT INTO users (id, email, email_verified, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $4)`,
+      [identity.id, identity.email, identity.emailVerified ? 1 : 0, now],
+    );
+    await tx.run(
+      `INSERT INTO profiles (user_id, alias, alias_normalized, timezone, public_competition_consent, share_badges, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
+      [
+        identity.id,
+        alias,
+        normalizeAlias(alias),
+        input.timezone ?? 'Europe/Stockholm',
+        input.publicCompetitionConsent ? 1 : 0,
+        input.shareBadges ? 1 : 0,
+        now,
+      ],
+    );
+    await audit(tx, 'account.created', identity.id, null, {
+      consent: Boolean(input.publicCompetitionConsent),
+      provider: 'supabase',
+    });
+  });
+
+  return {
+    user: await toPublicUser(await getUserById(db, identity.id), await getProfile(db, identity.id)),
+    created: true,
+  };
 }
 
 export interface UpdateProfileInput {
@@ -151,35 +159,38 @@ export interface UpdateProfileInput {
   shareBadges?: boolean | undefined;
 }
 
-export function updateProfile(db: Db, userId: string, input: UpdateProfileInput): PublicUser {
-  return immediate(db, () => {
-    const user = getUserById(db, userId);
-    const profile = getProfile(db, userId);
+export async function updateProfile(db: Db, userId: string, input: UpdateProfileInput): Promise<PublicUser> {
+  return db.tx(async (tx) => {
+    const user = await getUserById(tx, userId);
+    const profile = await getProfile(tx, userId);
     if (input.alias !== undefined && normalizeAlias(input.alias) !== profile.alias_normalized) {
-      if (aliasTaken(db, input.alias, userId)) throw conflict('Aliaset är upptaget. Välj ett annat.');
+      if (await aliasTaken(tx, input.alias, userId)) throw conflict('Aliaset är upptaget. Välj ett annat.');
     }
-    db.prepare(
-      `UPDATE profiles SET alias = ?, alias_normalized = ?, timezone = ?, public_competition_consent = ?,
-        share_badges = ?, updated_at = ? WHERE user_id = ?`,
-    ).run(
-      input.alias ?? profile.alias,
-      input.alias !== undefined ? normalizeAlias(input.alias) : profile.alias_normalized,
-      input.timezone ?? profile.timezone,
-      input.publicCompetitionConsent === undefined
-        ? profile.public_competition_consent
-        : input.publicCompetitionConsent
-          ? 1
-          : 0,
-      input.shareBadges === undefined ? profile.share_badges : input.shareBadges ? 1 : 0,
-      nowIso(),
-      userId,
+    await tx.run(
+      `UPDATE profiles SET alias = $1, alias_normalized = $2, timezone = $3,
+        public_competition_consent = $4, share_badges = $5, updated_at = $6 WHERE user_id = $7`,
+      [
+        input.alias ?? profile.alias,
+        input.alias !== undefined ? normalizeAlias(input.alias) : profile.alias_normalized,
+        input.timezone ?? profile.timezone,
+        input.publicCompetitionConsent === undefined
+          ? profile.public_competition_consent
+          : input.publicCompetitionConsent
+            ? 1
+            : 0,
+        input.shareBadges === undefined ? profile.share_badges : input.shareBadges ? 1 : 0,
+        nowIso(),
+        userId,
+      ],
     );
-    audit(db, 'profile.updated', userId, null, {
+    await audit(tx, 'profile.updated', userId, null, {
       consentChanged:
         input.publicCompetitionConsent !== undefined &&
         input.publicCompetitionConsent !== (profile.public_competition_consent === 1),
+      badgesChanged:
+        input.shareBadges !== undefined && input.shareBadges !== (profile.share_badges === 1),
     });
-    return toPublicUser(user, getProfile(db, userId));
+    return toPublicUser(user, await getProfile(tx, userId));
   });
 }
 
@@ -194,34 +205,38 @@ export interface ProfileStats {
   memberSince: string;
 }
 
-export function profileStats(db: Db, userId: string): ProfileStats {
-  const goals = db
-    .prepare(
-      `SELECT COUNT(*) AS goalCount,
-              COALESCE(SUM(CASE WHEN archived_at IS NULL THEN 1 ELSE 0 END), 0) AS activeGoalCount,
-              COALESCE(SUM(balance_ore), 0) AS totalSaved,
-              COALESCE(SUM(target_amount_ore), 0) AS totalTarget
-       FROM savings_goals WHERE owner_id = ?`,
-    )
-    .get(userId) as { goalCount: number; activeGoalCount: number; totalSaved: number; totalTarget: number };
-  const achievements = db
-    .prepare('SELECT COUNT(DISTINCT achievement_id) AS count FROM user_achievements WHERE user_id = ?')
-    .get(userId) as { count: number };
-  const competitions = db
-    .prepare(
-      `SELECT COUNT(*) AS count FROM competition_participants
-       WHERE user_id = ? AND withdrawn_at IS NULL`,
-    )
-    .get(userId) as { count: number };
-  const user = getUserById(db, userId);
+export async function profileStats(db: Db, userId: string): Promise<ProfileStats> {
+  const goals = await db.one<{
+    goalcount: number;
+    activegoalcount: number;
+    totalsaved: number;
+    totaltarget: number;
+  }>(
+    `SELECT COUNT(*)::int AS "goalCount",
+            COALESCE(SUM(CASE WHEN archived_at IS NULL THEN 1 ELSE 0 END), 0)::int AS "activeGoalCount",
+            COALESCE(SUM(balance_ore), 0)::bigint AS "totalSaved",
+            COALESCE(SUM(target_amount_ore), 0)::bigint AS "totalTarget"
+     FROM savings_goals WHERE owner_id = $1`,
+    [userId],
+  );
+  const achievements = await db.one<{ count: number }>(
+    'SELECT COUNT(DISTINCT achievement_id)::int AS count FROM user_achievements WHERE user_id = $1',
+    [userId],
+  );
+  const competitions = await db.one<{ count: number }>(
+    'SELECT COUNT(*)::int AS count FROM competition_participants WHERE user_id = $1 AND withdrawn_at IS NULL',
+    [userId],
+  );
+  const user = await getUserById(db, userId);
+  const earnedCount = achievements?.count ?? 0;
   return {
-    goalCount: goals.goalCount,
-    activeGoalCount: goals.activeGoalCount,
-    totalSavedOre: goals.totalSaved,
-    totalTargetOre: goals.totalTarget,
-    achievementCount: achievements.count,
-    level: levelFor(achievements.count),
-    competitionCount: competitions.count,
+    goalCount: goals?.goalcount ?? 0,
+    activeGoalCount: goals?.activegoalcount ?? 0,
+    totalSavedOre: goals?.totalsaved ?? 0,
+    totalTargetOre: goals?.totaltarget ?? 0,
+    achievementCount: earnedCount,
+    level: await levelFor(earnedCount),
+    competitionCount: competitions?.count ?? 0,
     memberSince: user.created_at,
   };
 }
@@ -233,57 +248,79 @@ export interface DeletionSummary {
   deletedAchievements: number;
   groupsTransferred: number;
   groupsDeleted: number;
-  competitionsLeft: number;
+}
+
+export async function deletionSummaryFor(db: Db, userId: string): Promise<DeletionSummary> {
+  const row = await db.one<{
+    goals: number;
+    transactions: number;
+    movements: number;
+    achievements: number;
+    groups: number;
+  }>(
+    `SELECT
+       (SELECT COUNT(*)::int FROM savings_goals WHERE owner_id = $1) AS goals,
+       (SELECT COUNT(*)::int FROM transactions WHERE owner_id = $1) AS transactions,
+       (SELECT COUNT(*)::int FROM savings_movements WHERE owner_id = $1) AS movements,
+       (SELECT COUNT(*)::int FROM user_achievements WHERE user_id = $1) AS achievements,
+       (SELECT COUNT(*)::int FROM private_groups WHERE owner_id = $1) AS groups`,
+    [userId],
+  );
+  return {
+    deletedGoals: row?.goals ?? 0,
+    deletedTransactions: row?.transactions ?? 0,
+    deletedMovements: row?.movements ?? 0,
+    deletedAchievements: row?.achievements ?? 0,
+    groupsTransferred: 0,
+    groupsDeleted: row?.groups ?? 0,
+  };
 }
 
 /**
- * Documented account-deletion policy (see README "Data deletion"):
- *  - the password must be confirmed first;
- *  - all personal and financial data is deleted immediately and irreversibly
- *    (profile, goals, movements, transactions, achievements, sessions, reset tokens);
- *  - group ownership is transferred to the earliest remaining member, otherwise the group is deleted;
- *  - competition participations are removed, so the user no longer appears in any leaderboard;
- *  - the audit log keeps a pseudonymous event referencing only the random user UUID (never e-mail or alias).
+ * Account deletion policy:
+ *  - all personal and financial data is deleted immediately (profile, goals, movements,
+ *    transactions, achievements, sessions, memberships, participations);
+ *  - group ownership is transferred to the earliest remaining member, groups without members go;
+ *  - the audit trail keeps a pseudonymous event referencing only the random user UUID.
+ * The Supabase Auth user is removed by the route after this transaction succeeds.
  */
-export function deleteAccount(db: Db, userId: string, summary: DeletionSummary): void {
-  immediate(db, () => {
-    const ownedGroups = db
-      .prepare('SELECT id FROM private_groups WHERE owner_id = ?')
-      .all(userId) as Array<{ id: string }>;
+export async function deleteAccount(db: Db, userId: string, summary: DeletionSummary): Promise<DeletionSummary> {
+  return db.tx(async (tx) => {
+    const ownedGroups = await tx.query<{ id: string }>('SELECT id FROM private_groups WHERE owner_id = $1', [userId]);
     for (const group of ownedGroups) {
-      const next = db
-        .prepare(
-          `SELECT user_id FROM group_members WHERE group_id = ? AND user_id <> ?
-           ORDER BY joined_at ASC, user_id ASC LIMIT 1`,
-        )
-        .get(group.id, userId) as { user_id: string } | undefined;
+      const next = await tx.one<{ user_id: string }>(
+        `SELECT user_id FROM group_members WHERE group_id = $1 AND user_id <> $2
+         ORDER BY joined_at ASC, user_id ASC LIMIT 1`,
+        [group.id, userId],
+      );
       if (next) {
-        db.prepare('UPDATE private_groups SET owner_id = ?, updated_at = ? WHERE id = ?').run(
+        await tx.run('UPDATE private_groups SET owner_id = $1, updated_at = $2 WHERE id = $3', [
           next.user_id,
           nowIso(),
           group.id,
-        );
-        db.prepare('UPDATE group_members SET role = ? WHERE group_id = ? AND user_id = ?').run(
+        ]);
+        await tx.run('UPDATE group_members SET role = $1 WHERE group_id = $2 AND user_id = $3', [
           'owner',
           group.id,
           next.user_id,
-        );
+        ]);
         summary.groupsTransferred += 1;
       }
     }
-    revokeAllSessions(db, userId);
-    // Everything else is removed through ON DELETE CASCADE from users.
-    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+    await tx.run('UPDATE sessions SET revoked_at = $1 WHERE user_id = $2 AND revoked_at IS NULL', [nowIso(), userId]);
+    await audit(tx, 'account.deleted', userId, null, { ...summary });
+    // Cascades remove profile, goals, ledger, transactions, achievements, memberships, participations.
+    await tx.run('DELETE FROM users WHERE id = $1', [userId]);
     summary.groupsDeleted = ownedGroups.length - summary.groupsTransferred;
-    audit(db, 'account.deleted', userId, null, { ...summary });
-    db.prepare(
-      'INSERT INTO audit_events (id, actor_user_id, event, target, metadata, created_at) VALUES (?, NULL, ?, NULL, ?, ?)',
-    ).run(uuid(), 'account.deletion_policy_applied', JSON.stringify({ deletedUserId: userId }), nowIso());
+    await tx.run(
+      `INSERT INTO audit_events (id, actor_user_id, event, target, metadata, created_at)
+       VALUES ($1, NULL, $2, NULL, $3, $4)`,
+      [uuid(), 'account.deletion_policy_applied', JSON.stringify({ deletedUserId: userId }), nowIso()],
+    );
+    return summary;
   });
 }
 
-export async function confirmPassword(db: Db, userId: string, password: string): Promise<void> {
-  const user = getUserById(db, userId);
-  const ok = await verifyPassword(user.password_hash, password);
-  if (!ok) throw forbidden('Lösenordet stämmer inte.');
+export async function revokeEverything(db: Db, userId: string): Promise<void> {
+  await revokeAllSessions(db, userId);
 }

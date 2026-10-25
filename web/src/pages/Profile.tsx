@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, ApiError, setCsrfToken } from '../api';
+import { api, ApiError } from '../api';
 import { useAuth } from '../auth';
 import { useDocumentTitle } from '../hooks';
 import { useToast } from '../toast';
@@ -30,7 +30,7 @@ const TIMEZONES = [
 
 export function Profile() {
   useDocumentTitle('Profil och integritet');
-  const { user, stats, refresh, setUser, logout } = useAuth();
+  const { user, stats, refresh, setUser, logout, reauthenticate, updatePassword } = useAuth();
   const { push } = useToast();
   const navigate = useNavigate();
 
@@ -118,16 +118,22 @@ export function Profile() {
       setPasswordError('De nya lösenorden matchar inte.');
       return;
     }
+    if (newPassword.length < 10) {
+      setPasswordError('Det nya lösenordet måste vara minst 10 tecken.');
+      return;
+    }
+    if (!user) return;
     setSavingPassword(true);
     try {
-      const result = await api.changePassword(currentPassword, newPassword);
-      setCsrfToken(result.csrfToken);
+      // Credentials are verified by Supabase Auth, never by this app's API.
+      await reauthenticate(user.email, currentPassword);
+      await updatePassword(newPassword);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      push('Lösenordet är bytt. Dina andra sessioner är utloggade.');
+      push('Lösenordet är bytt.');
     } catch (error) {
-      setPasswordError(error instanceof ApiError ? error.message : 'Kunde inte byta lösenord.');
+      setPasswordError(error instanceof Error ? error.message : 'Kunde inte byta lösenord.');
     } finally {
       setSavingPassword(false);
     }
@@ -137,7 +143,9 @@ export function Profile() {
     setDeleteError(null);
     setBusyDelete(true);
     try {
-      await api.deleteAccount(deletePassword, deleteConfirm);
+      if (!user) return;
+      const accessToken = await reauthenticate(user.email, deletePassword);
+      await api.deleteAccount(deleteConfirm, accessToken);
       await logout();
       navigate('/logga-in', { replace: true });
       push('Ditt konto och all finansiell data har raderats.', 'info');

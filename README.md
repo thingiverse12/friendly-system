@@ -2,20 +2,19 @@
 
 A complete, standalone, mobile-first savings app with gamified goals, achievements and optional
 savings competitions. Swedish UI, Scandinavian visual language (deep pine navy, emerald accents,
-restrained gold for achievements), server-rendered truth, no third‑party backend.
+restrained gold for achievements), server-rendered truth.
 
-> **No Lovable. No Supabase.** React + TypeScript frontend, Node.js + TypeScript API, SQLite with
-> parameterised SQL, Argon2id passwords and server-side sessions. Every account, transaction,
-> competition result and permission lives in the server database — never in browser storage.
-
----
+> **Live stack:** React + TypeScript (Vite) · Express 5 + TypeScript on **Vercel** · **Supabase Auth**
+> for login · **Supabase Postgres** for all application data. No Lovable, no mock data, no
+> frontend-only storage: every account, balance, competition result and permission lives in Postgres
+> and is authorised on the server for every request.
 
 ## 1. What is included
 
 | Area | Implemented |
 | --- | --- |
-| Accounts | Registration, login, logout, password change, password reset, account deletion |
-| Security | Argon2id, server-side sessions, HttpOnly cookies, CSRF double-submit, same-origin checks, rate limits, audit log |
+| Accounts | Registration, login, logout, password change, password reset (Supabase Auth), account deletion |
+| Security | Supabase-verified tokens, server-side sessions, HttpOnly cookies, CSRF double-submit, same-origin checks, rate limits, audit log |
 | Savings goals | Create, edit, archive, delete, privacy flag, locked target during competitions |
 | Transactions | Income/expenses with categories, optional private description, filters, search by period, edit/delete |
 | Savings ledger | Append-only deposit/withdrawal ledger, exact integer öre, balances derived from movements |
@@ -25,7 +24,7 @@ restrained gold for achievements), server-rendered truth, no third‑party backe
 | Groups | Create, invite by hashed one-time codes, revoke, leave, ownership transfer, group-only leaderboards |
 | Privacy | Alias-only leaderboards, explicit public-competition consent (default **off**), badge sharing opt-in |
 | UX | Mobile bottom navigation + desktop sidebar, loading/empty/error/success states, reduced-motion support, keyboard focus rings |
-| Ops | Migrations, seed script, Docker image, health check, backups, test suite |
+| Ops | Postgres migrations, Vercel function, Docker image, health check, test suite |
 
 Screens: Dashboard, Savings goals, Goal detail, Transactions, Competitions, Competition leaderboard,
 Private groups + group detail, Achievements, Profile & privacy, Login, Registration, Password reset,
@@ -36,89 +35,108 @@ Private groups + group detail, Achievements, Profile & privacy, Login, Registrat
 ## 2. Architecture
 
 ```
-┌──────────────────────────────┐        same origin, HttpOnly session cookie
-│ React 19 + TypeScript (Vite) │  ───────────────────────────────────────────┐
-│ web/src                      │                                             │
-└──────────────────────────────┘                                             ▼
-                                                   ┌─────────────────────────────────┐
-                                                   │ Express 5 (TypeScript)          │
-                                                   │ server/src                      │
-                                                   │  routes/  → HTTP + validation   │
-                                                   │  services/→ domain rules        │
-                                                   │  lib/     → money, auth, limits │
-                                                   └───────────────┬─────────────────┘
-                                                                   │ parameterised SQL
-                                                                   ▼
-                                                   ┌─────────────────────────────────┐
-                                                   │ SQLite (better-sqlite3, WAL)    │
-                                                   │ data/sparly.db · integer öre    │
-                                                   └─────────────────────────────────┘
+┌───────────────────────────────────┐
+│ React 19 + TypeScript (Vite)      │   browser
+│ web/src · mobile-first SPA        │
+└───────┬───────────────────┬───────┘
+        │ 1. e-mail+lösenord│ 2. POST /api/auth/session { accessToken }   (once per login)
+        ▼                   ▼
+┌──────────────────┐  ┌──────────────────────────────────────────┐
+│ Supabase Auth    │  │ Express 5 · Vercel Function              │
+│ (GoTrue)         │◄─┤ server/src  routes → services → lib       │
+│ owns credentials │  │ session cookie (HttpOnly) + sha256 in DB │
+└──────────────────┘  └───────────────────┬──────────────────────┘
+                                          │ parameterised SQL (`pg`, Supavisor :6543)
+                                          ▼
+                        ┌──────────────────────────────────────────┐
+                        │ Supabase Postgres · public schema        │
+                        │ integer öre · CHECK · triggers · indexes │
+                        └──────────────────────────────────────────┘
 ```
+
+**Login flow (Supabase Auth owns the credentials).** The browser signs in directly against Supabase
+(`signInWithPassword`); the password never touches this API. The resulting access token is sent
+**once** to `POST /api/auth/session`, which verifies it against `${SUPABASE_URL}/auth/v1/user`,
+provisions the local `users`/`profiles` rows with `users.id = auth uid`, and issues the app's own
+server-side session cookie. Ordinary API requests therefore never call Supabase — they validate a
+session row, which keeps them fast, revocable and independent of JWT expiry.
 
 **Why this stack**
 
-* The environment has Node 22 and npm, but **no PostgreSQL server**. SQLite in WAL mode with
-  `better-sqlite3` (synchronous, transactional, file-persistent) is the reliable choice for a
-  single-server deployment, and the schema uses plain SQL with foreign keys, CHECK constraints,
-  triggers and indexes so it ports to Postgres with minimal changes.
-* `numeric`/decimal is emulated the safe way for SQLite: **all money is integer öre**
-  (1 SEK = 100 öre). No `FLOAT`, no `Number` rounding in balances or scores.
-* Sessions are server-managed rows, so revocation is immediate and nothing security-relevant is
-  stored in the client.
-* Vanilla React + a small `fetch` wrapper keeps the dependency surface (and the security surface)
-  small. No state library, no CSS framework, no analytics.
+* The user asked for **Supabase for login and Vercel for publishing**. Vercel functions have no
+  persistent disk, so the data layer moved to **Supabase Postgres** as a consequence — the whole app
+  is now stateless at the edge and survives redeploys and cold starts.
+* One SQL dialect everywhere: production runs real Postgres, tests run **PGlite** (the same Postgres
+  compiled to WebAssembly), so the suite exercises the exact statements that production executes.
+* Money stays **integer öre** (`BIGINT`, 1 SEK = 100 öre) and scores stay **integer centi-points**.
+  No floating point anywhere, and `int8`/`numeric` are parsed to JS numbers at the driver level.
+* Sessions are server-managed rows: revocation is immediate, nothing security-relevant is stored in
+  the client, and logging out one device leaves the others untouched.
+* Vanilla React + a small `fetch` wrapper keeps the dependency and security surface small.
 
 ### Project layout
 
 ```
 server/src
   app.ts                 express app: security headers, sessions, CSRF, routes, SPA fallback
-  index.ts               bootstrap: migrations, lifecycle sweep, graceful shutdown
-  db.ts                  connection, migrations, audit helper, transactions
-  migrations.ts          versioned SQL schema + achievement seed
+  index.ts               long-lived server bootstrap (migrations, lifecycle sweep, shutdown)
+  db.ts                  pg/PGlite handle, migrations, transactions, audit helper
+  pg/migrations.ts       versioned Postgres schema (001–006) + achievement seed
   config.ts              environment configuration
-  lib/                   money, password (Argon2id), cookies, http middleware, validation, time
-  services/              accounts, goals, transactions, achievements, competitions, groups, dashboard, sessions, mailer
-  routes/                auth+profile, goals, transactions, dashboard, achievements, competitions, groups
-  tests/                 38 integration/unit tests (vitest + supertest)
+  lib/                   money, cookies, http middleware, validation, time
+  services/              accounts, goals, transactions, achievements, competitions, groups,
+                         dashboard, sessions, supabase (Auth provider)
+  routes/                auth+profile, goals, transactions, dashboard, achievements,
+                         competitions, groups
+api/
+  _app.js                Vercel function: caches the Express app per instance, migrates on cold start
+  [...path].js, index.js thin re-exports so every /api/* path reaches the function
+vercel.json              build/output, function config, SPA rewrite, headers
 web/src
-  api.ts, types.ts, format.ts, auth.tsx, toast.tsx, hooks.ts
+  supabase.ts            Supabase client (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY)
+  auth.tsx, api.ts, types.ts, format.ts, toast.tsx, hooks.ts
   components/            AppShell, UI primitives, Cards, Forms, Icon, illustrations
   pages/                 Auth, Dashboard, Goals, GoalDetail, Transactions, Competitions,
                          CompetitionDetail, GroupDetail, Achievements, Profile, NotFound
   styles.css, pages.css  design tokens, layout, components, responsive + reduced motion
-scripts/seed-demo.ts     realistic demo data
+tests                    server/tests — 38 integration/unit tests (vitest + supertest)
 ```
 
 ---
 
 ## 3. Quick start
 
+Prerequisites: **Node 22+** and a Supabase project (the free tier is enough). You need the project
+URL, the anon key and the service-role key, plus the database connection string.
+
 ```bash
-npm install                # Node 22+
-npm run build              # builds web (Vite) + server (tsc → dist/)
-npm run seed:demo          # optional: demo accounts and competitions
-npm start                  # http://localhost:3000
+npm install
+npm run build                     # builds the SPA (Vite) and the server (tsc → dist/)
+
+# Point the app at your Supabase project (see .env.example for every variable)
+export DATABASE_URL="postgresql://postgres.<ref>:<password>@aws-<n>-<region>.pooler.supabase.com:6543/postgres"
+export SUPABASE_URL="https://<ref>.supabase.co"
+export SUPABASE_ANON_KEY="<anon key>"
+export SUPABASE_SERVICE_ROLE_KEY="<service_role key>"
+export VITE_SUPABASE_URL="$SUPABASE_URL"        # read at *build* time by Vite
+export VITE_SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
+
+npm start                         # http://localhost:3000 — migrates, seeds, serves API + SPA
 ```
 
-Demo accounts (password `SparlyDemo123`): `alex@sparly.se`, `emma@sparly.se`, `oskar@sparly.se`,
-`frida@sparly.se`, `lukas@sparly.se`, `elin@sparly.se`. The seed prints a valid group invitation
-code.
-
-The seed is **development-only** and safe to skip — a fresh database is created and migrated
-automatically on first start.
+Without `DATABASE_URL` the server falls back to **PGlite** in `./data/pglite` (real Postgres
+semantics, no server needed) — handy for local UI work, but login still requires Supabase Auth
+because credentials are never handled locally.
 
 Useful scripts:
 
 | Script | Purpose |
 | --- | --- |
-| `npm run dev` | Build the SPA and start the production server |
 | `npm run dev:server` | API with `tsx watch` (port 3000) |
 | `npm run dev:web` | Vite dev server with `/api` proxy (port 5173) |
-| `npm run build` / `npm start` | Production build / run |
-| `npm test` | Vitest suite (38 tests) |
+| `npm run build` / `npm start` | Production build / run from compiled `dist/` |
+| `npm test` | Vitest suite (38 tests, PGlite, no network) |
 | `npm run typecheck` | Server + web type check |
-| `npm run seed:demo -- --force` | Rebuild demo data |
 
 ### Configuration
 
@@ -126,14 +144,18 @@ See `.env.example`. The important ones:
 
 | Variable | Default | Notes |
 | --- | --- | --- |
+| `DATABASE_URL` | – | Supabase Postgres, **transaction pooler** (`...pooler.supabase.com:6543`). Required in production |
+| `DATABASE_SSL` | auto | `1` forces TLS; Supabase hosts enable it automatically (`rejectUnauthorized: false`) |
+| `DATABASE_POOL_SIZE` | `5` | Keep low (3) on serverless |
+| `SUPABASE_URL` / `SUPABASE_ANON_KEY` | – | Used to verify access tokens (`/auth/v1/user`) |
+| `SUPABASE_SERVICE_ROLE_KEY` | – | Only used to delete the Auth user when an account is erased |
+| `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` | – | Baked into the SPA at build time |
 | `PORT` / `HOST` | `3000` / `0.0.0.0` | Bind all interfaces so previews/proxies work |
-| `DATABASE_FILE` | `./data/sparly.db` | Put on a durable volume |
 | `COOKIE_SECURE` | auto (`1` in production) | Must be `1` behind HTTPS; `0` only for local HTTP |
-| `COOKIE_SAMESITE` | `Lax` | `Lax`/`Strict` for normal sites; `None` (with `COOKIE_SECURE=1`) when the app is embedded in a cross-site iframe, e.g. a sandbox preview panel |
+| `COOKIE_SAMESITE` | `Lax` | `None` (with `COOKIE_SECURE=1`) only when embedded in a cross-site iframe |
 | `SESSION_TTL_HOURS` | `336` | Server-side expiry, validated per request |
 | `ALLOWED_ORIGINS` | – | Extra origins allowed to call the API |
-| `SMTP_URL`, `MAIL_FROM`, `APP_URL` | – | Password-reset delivery; without SMTP the link is logged (never returned in production) |
-| `TRUST_PROXY` | – | `1` behind nginx/ALB so rate limits see the client IP |
+| `TRUST_PROXY` | – | `1` behind Vercel/nginx/ALB so rate limits see the real client IP |
 
 ---
 
@@ -141,13 +163,14 @@ See `.env.example`. The important ones:
 
 Tables (all with primary keys, foreign keys, CHECK constraints and indexes):
 
-`users` · `profiles` · `sessions` · `password_reset_tokens` · `audit_events` · `rate_limits` ·
+`users` · `profiles` · `sessions` · `audit_events` · `rate_limits` ·
 `savings_goals` · `transactions` · `savings_movements` · `achievements` · `user_achievements` ·
 `competitions` · `competition_participants` · `private_groups` · `group_members` · `invitation_codes`
 
 Highlights:
 
-* `users.id` is a UUID; `profiles` holds alias, normalized alias (unique), timezone,
+* `users.id` is the **Supabase Auth user id** (UUID) — credentials stay in the `auth` schema and are
+  never duplicated here; `users` stores only e-mail, verification flag and timestamps. `profiles` holds alias, normalized alias (unique), timezone,
   `public_competition_consent` (default `0`), `share_badges` (default `0`) and creation time.
 * `savings_goals.target_amount_ore` / `balance_ore` are integers with `CHECK` bounds; `privacy`
   defaults to `private`; `archived_at` is optional.
@@ -161,30 +184,37 @@ Highlights:
   `class_code` and `snapshot_frozen_at`. Triggers reject any later change to a frozen snapshot and
   any second write of `final_score_centi` / `final_rank`.
 * `invitation_codes` stores **only** `sha256(code)` plus expiry, usage limit/counter and revocation.
-* `savings_goals.balance_ore` is only ever changed by the movement service inside an IMMEDIATE
-  transaction, together with the matching ledger row.
+* `savings_goals.balance_ore` is only ever changed by the movement service inside a transaction,
+  together with the matching ledger row.
+* `savings_goals`, `transactions` and `savings_movements` carry a `seq BIGINT IDENTITY` column so
+  list order is deterministic even when two rows share a timestamp (the test clock can freeze).
 
-Migrations are ordered SQL files executed once inside a transaction and recorded in
-`schema_migrations`, so a fresh database is reproducible (`npm start` migrates automatically).
+Migrations are ordered SQL statements executed once inside a transaction and recorded in
+`schema_migrations`, so a fresh database is reproducible. The same module runs locally (PGlite) and
+against Supabase Postgres, and runs automatically on server start and on Vercel cold start.
 
 ---
 
 ## 5. Security model
 
-**Authentication**
+**Authentication — Supabase Auth**
 
-* Argon2id via `@node-rs/argon2` (m = 19 MiB, t = 2, p = 1, 32-byte output — OWASP baseline).
-  Wrong e-mail and wrong password return the same message, and unknown accounts still pay a dummy
-  verification to equalise timing.
-* Password policy: ≥ 10 characters, letters + digits, rejected when identical to the previous one.
-* Server-managed sessions: 256-bit random token, only `sha256(token)` stored; expiry, revocation and
-  "logged out everywhere after a password change" are enforced server-side on every request.
-* Cookies: `HttpOnly`, `Secure` (production), `SameSite=Lax`, `Path=/`.
-* Password reset tokens: 256-bit, hashed at rest, single use, expire after 1 hour; requesting a new
-  one invalidates the previous one. The endpoint always answers identically (no account enumeration).
-* Rate limits (fixed windows persisted in SQLite, so they survive restarts and multi-process setups):
-  login 8/15 min per IP+e-mail, register 5/h, reset request 5/h, reset 10/h, invitation joins 15/15 min,
-  competition joins 20/h, group creation 10/h.
+* Credentials live **only** in Supabase Auth (GoTrue). This API never receives, stores or hashes a
+  password, and there is no password column anywhere in the schema.
+* Registration and login happen in the browser against Supabase; account creation is provisioned in
+  the app on the first `POST /api/auth/session` (server-side, from the verified token claims).
+* The token is verified against `${SUPABASE_URL}/auth/v1/user` with the anon key. Invalid or expired
+  tokens return a generic `401` (“Inloggningen har gått ut”); malformed requests are `422`.
+* Only one network call to Supabase per login. Every subsequent request uses the app session.
+* App sessions: 256-bit random token, only `sha256(token)` stored, `HttpOnly` + `Secure` (production)
+  + `SameSite`, per-device rows with expiry, `last_seen_at` and revocation. Logging out one device
+  does not touch the others.
+* Password change and account erasure require a **fresh** Supabase access token obtained by
+  re-authenticating — a hijacked session cookie alone cannot rotate the password or destroy the
+  account. Account erasure additionally requires the literal confirmation `RADERA`.
+* Rate limits (persisted in Postgres, so they survive restarts and scale across instances):
+  session exchange 8/15 min, invitation joins 15/15 min, competition joins 20/h, group creation 10/h,
+  invitation creation 30/h.
 
 **Authorisation** — enforced in services, not in the UI:
 
@@ -200,15 +230,17 @@ Migrations are ordered SQL files executed once inside a transaction and recorded
 | Join a public competition without consent | `403` |
 | Submit or overwrite a score / snapshot / final result | `403`/`404` and blocked by triggers |
 | State-changing request without CSRF token or from a foreign origin | `403` / `400` |
+| Delete someone else's account by replaying another token | `403` (token identity must match) |
 
-**Transport & headers** — `Content-Security-Policy` (no inline scripts, `frame-ancestors *` so the
+**Transport & headers** — `Content-Security-Policy` (no inline scripts, `frame-ancestors *` so a
 sandbox preview can embed the app), `X-Content-Type-Options: nosniff`, `Referrer-Policy`,
 `Permissions-Policy`, HSTS in production. All SQL uses bound parameters; every request body is
 validated with a strict Zod schema; React escapes all rendered strings by default and the API only
-serves JSON with `nosniff`.
+serves JSON with `nosniff`. The service-role key is only ever read server-side.
 
 **Not in scope / explicitly absent** — no card, bank or payment integrations, no bank credentials,
-no third-party analytics, no secrets in the frontend bundle.
+no third-party analytics, no secrets in the frontend bundle (only the public anon key ships to the
+browser, as intended by Supabase).
 
 ---
 
@@ -275,19 +307,23 @@ competition detail response.
 
 ## 8. Account deletion policy
 
-`DELETE /api/profile/account` requires the current password **and** the literal confirmation
-`RADERA`. On success, and inside one transaction:
+`DELETE /api/profile/account` requires a **fresh Supabase access token** (obtained by re-entering the
+password in the browser, verified server-side against `/auth/v1/user`) **and** the literal
+confirmation `RADERA`. The token must belong to the signed-in user. On success, and inside one
+transaction:
 
 1. Group ownership is transferred to the earliest remaining member (groups without other members are
    deleted together with their private competitions).
-2. All sessions and reset tokens are revoked.
+2. All sessions are revoked.
 3. The user row is deleted; `ON DELETE CASCADE` removes profile, goals, ledger movements,
    transactions, achievements, group memberships, invitations they created and competition
    participations.
 4. Competitions keep working: the user simply no longer appears in any leaderboard.
 5. The audit log keeps one pseudonymous `account.deleted` row (random UUID + counts, no e-mail,
-   alias or amounts) plus a `account.deletion_policy_applied` marker, which is what regulators need
-   to prove the erasure happened.
+   alias or amounts) plus an `account.deletion_policy_applied` marker containing the erased user id,
+   which is what regulators need to prove the erasure happened.
+6. Only then is the **Supabase Auth user** deleted with the service-role key — if that call fails
+   the request fails loudly instead of leaving an orphaned login.
 
 ---
 
@@ -299,8 +335,8 @@ All endpoints are under `/api`; every mutating call needs `X-CSRF-Token` (the va
 | Method & path | Description |
 | --- | --- |
 | `GET /auth/csrf` · `GET /auth/me` | Anonymous token / current session + profile + stats |
-| `POST /auth/register` · `/auth/login` · `/auth/logout` | Account lifecycle |
-| `POST /auth/password/request` · `/auth/password/reset` · `/auth/password/change` | Recovery and rotation |
+| `POST /auth/session` | Exchange a Supabase access token for an app session (`201` on first creation, `200` afterwards) |
+| `POST /auth/logout` | Revoke this device's session |
 | `GET/PATCH /profile` · `GET /profile/alias-available` · `DELETE /profile/account` | Alias, timezone, consent, badges, deletion |
 | `GET /dashboard` | Aggregated overview |
 | `GET/POST /goals` · `GET/PATCH/DELETE /goals/:id` · `POST /goals/:id/archive\|unarchive` | Goals |
@@ -324,8 +360,10 @@ Amounts are always integer **öre** in the API (`amountOre: 125050` = 1 250,50 k
 npm test
 ```
 
-Environment: Node 22.22, vitest 5, supertest, in-memory or temp-file SQLite per suite. Arc: 8 files,
-**38 tests, 38 passed, 0 failed, 0 skipped** (~4–5 s). Database, HTTP layer and authorisation are
+Environment: Node 22.22, vitest 5, supertest, **PGlite** (Postgres in WebAssembly) with a fresh
+database and the real SQL migrations per suite, Supabase Auth replaced by a test identity provider
+(`test:<uuid>:<email>` tokens, only available with `NODE_ENV=test`). Arc: 8 files,
+**38 tests, 38 passed, 0 failed, 0 skipped** (~70 s). Database, HTTP layer and authorisation are
 exercised end-to-end through the real Express app; time is frozen with the test-only clock.
 
 | # | Requirement | Where it is verified | Result |
@@ -349,10 +387,12 @@ exercised end-to-end through the real Express app; time is frozen with the test-
 | 17 | Account deletion follows the documented policy | `account.test.ts` → "requires password confirmation and deletes all personal and financial data", "removes the user from competition leaderboards" | Passed |
 | 18 | The application works on mobile and desktop | `ui.test.ts` → viewport/responsive/reduced-motion/6-destination checks, SPA deep-link delivery, API 404 + health | Passed (static + delivery checks; see below) |
 
-Additional security tests included in the suite: CSRF missing/wrong/foreign-origin rejection, login
-rate limiting, SQL-injection attempts leaving data intact, Argon2id hashing (no plaintext), duplicate
-e-mail handling, password reset flow (single use, old password invalidated), group ownership
-transfer, private competitions hidden from outsiders, and audit-log pseudonymisation.
+Additional security tests included in the suite: CSRF missing/wrong/foreign-origin rejection,
+session-exchange rate limiting (12 attempts → `429`, no user created), SQL-injection attempts leaving
+data intact, no credential columns in the schema (`users` has no `password_hash`), duplicate e-mail
+handling, per-device session isolation (two sessions, one revoked), profile validation (alias
+uniqueness, timezone, length), group ownership transfer, private competitions hidden from outsiders,
+and audit-log pseudonymisation.
 
 **Not executed (reported honestly, not claimed as passed)**
 
@@ -362,53 +402,78 @@ transfer, private competitions hidden from outsiders, and audit-log pseudonymisa
   does verify that the built SPA is served for deep links, which is the server-side part of mobile
   reload behaviour. Run Playwright/Cypress on a machine with a browser for pixel-level checks.
 * **Mobile device farm testing** — unavailable here.
-* **Email delivery** — no SMTP server in this environment; the reset flow is tested with the
-  development token. Set `SMTP_URL` in production to deliver real e-mails.
-* **PostgreSQL** — no server available; SQLite is used instead (see section 11 for the migration path).
+* **Supabase Auth over the network** — this sandbox has no outbound access to `*.supabase.co`, so
+  the token-verification call and the real sign-up/login round-trip are exercised against a test
+  provider with the identical contract, not against the live project. They work in the deployed app,
+  which runs on Vercel with normal internet access.
+* **Live Supabase Postgres** — no direct database connection is possible from this sandbox; the
+  suite runs the same migrations and queries on PGlite. Schema and queries are byte-identical.
+* **E-mail delivery** — confirmation/recovery e-mails are sent by Supabase; whether they arrive
+  depends on the project's SMTP configuration (the deployed project uses auto-confirm).
 
 ---
 
 ## 11. Deployment
 
-### Docker (recommended)
+### Vercel (the public deployment)
+
+`vercel.json` describes everything: `npm run build` builds SPA + server, `web/dist` is the static
+output, and every `/api/*` request is handled by one function (`api/[...path].js` → `api/_app.js`)
+that caches a single Express instance per warm lambda, migrates on first use and runs the
+competition lifecycle sweep at most once a minute.
+
+1. Create the project (framework preset **Other**, build `npm run build`, output `web/dist`).
+2. Set the environment variables for Production **and** Preview:
+
+   ```
+   DATABASE_URL=postgresql://postgres.<ref>:<password>@aws-<n>-<region>.pooler.supabase.com:6543/postgres
+   DATABASE_POOL_SIZE=3
+   SUPABASE_URL=https://<ref>.supabase.co
+   SUPABASE_ANON_KEY=<anon key>
+   SUPABASE_SERVICE_ROLE_KEY=<service_role key>
+   VITE_SUPABASE_URL=https://<ref>.supabase.co
+   VITE_SUPABASE_ANON_KEY=<anon key>
+   TRUST_PROXY=1
+   ```
+
+3. In Supabase → Authentication → URL configuration, set **Site URL** to the deployment URL and add
+   `https://<deployment>/aterstall-losenord` to the redirect allow list (password recovery links).
+4. Apply the schema: either let the function migrate on the first request, or run
+   `DATABASE_URL=... node dist/index.js` once locally. Migrations live in
+   `server/src/pg/migrations.ts` and are recorded in `schema_migrations`.
+5. `GET /api/health` returns `{ "ok": true, "database": "ok" }` when the connection string is right;
+   a failure to connect returns `503` with the driver message.
+
+Serverless notes: the pool is small on purpose, Supavisor transaction mode is used, and nothing is
+written to disk. Competition lifecycle, which a long-lived server runs on a timer, is swept lazily
+per instance — results are recomputed from server time, so no background job is required.
+
+### Docker / any Node host
+
+The same build still runs as a normal process (`node dist/index.js`), which is handy for a
+self-hosted instance against the same Supabase project:
 
 ```bash
 docker build -t sparly .
 docker run -d --name sparly -p 3000:3000 \
-  -e COOKIE_SECURE=1 -e TRUST_PROXY=1 \
-  -e ALLOWED_ORIGINS=https://sparly.example.com \
-  -v sparly-data:/data sparly
+  -e DATABASE_URL=postgres://... -e SUPABASE_URL=https://<ref>.supabase.co \
+  -e SUPABASE_ANON_KEY=... -e SUPABASE_SERVICE_ROLE_KEY=... \
+  -e COOKIE_SECURE=1 -e TRUST_PROXY=1 sparly
 ```
 
-The image runs as an unprivileged user, stores the database in `/data`, exposes a health check and
-serves both the API and the built SPA.
-
-### Any Node host
-
-1. `npm ci && npm run build`
-2. Run `node dist/index.js` under a process manager (systemd, pm2, ECS, Fly, Render...).
-3. Terminate TLS at the edge (nginx, Caddy, ALB) and keep `COOKIE_SECURE=1`, `TRUST_PROXY=1`.
-4. Persist `DATABASE_FILE` (or `/data`) on a block volume; back up the SQLite file and its `-wal`
-   with `sqlite3 sparly.db ".backup 'backup.db'"` on a schedule.
-5. Optionally set `SMTP_URL`/`MAIL_FROM`/`APP_URL` so password resets are delivered.
+The image runs as an unprivileged user, exposes a health check and serves both the API and the
+built SPA. Backups are Supabase's responsibility (daily backups on paid plans; `pg_dump` with the
+session-pooler string otherwise).
 
 **Embedded / iframe hosts.** Browsers treat a page in a third-party iframe as cross-site, so the
 session cookie must be `SameSite=None; Secure` there. Set `COOKIE_SAMESITE=None` **only** for such a
-preview deployment; a normal top-level site should keep the default `Lax`. The API additionally
-accepts the `x-forwarded-host` header when validating request origins, which is what makes
-same-origin writes work behind a TLS proxy or preview router.
-
-**Scaling note:** SQLite is a single-writer database. This build is designed for one application
-server (which is enough for a friends-and-family product). The whole data layer is isolated in
-`server/src/services/*` with plain SQL, so moving to PostgreSQL means swapping the driver, replacing
-`INTEGER` öre with `NUMERIC(14,2)` or keeping öre, and translating `INSERT OR IGNORE`/triggers — no
-domain rules change.
+preview deployment; a normal top-level site keeps the default `Lax`.
 
 ### Verifying a deployment
 
 ```bash
-curl -s https://sparly.example.com/api/health
-curl -sI https://sparly.example.com/ | grep -i content-security-policy
+curl -s https://<deployment>/api/health
+curl -sI https://<deployment>/ | grep -i content-security-policy
 ```
 
 ---
@@ -432,9 +497,15 @@ curl -sI https://sparly.example.com/ | grep -i content-security-policy
 
 ## 13. Known limitations
 
-* Single-server SQLite deployment (see scaling note).
-* No real money movement — Sparly tracks savings, it is not a bank or payment provider.
+* **No real money movement** — Sparly tracks savings, it is not a bank or payment provider.
+* **E-mail deliverability depends on Supabase** — with the default (auto-confirm) setting a new
+  account is usable immediately; if you enable e-mail confirmation you must configure SMTP in the
+  Supabase project, otherwise confirmation links never arrive.
+* **This sandbox cannot reach `*.supabase.co`** — auth and database traffic are only verifiable in a
+  browser with internet access or on the deployed Vercel app; see section 10 for what was and was not
+  executed here.
 * Competitions are created automatically for 7/30 days or by a group owner; there is no admin UI for
   editing competitions after they start (by design — results are immutable).
 * No push notifications; all state is pull-based.
-* Public competition discovery currently lists every public competition (no pagination beyond 40).
+* Public competition discovery lists every public competition (no pagination beyond 40).
+* Serverless cold starts add ~0.5–1.5 s to the first request of an instance (migration check included).

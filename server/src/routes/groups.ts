@@ -43,17 +43,17 @@ export function groupRoutes(db: Db): Router {
   const router = Router();
   router.use(requireAuth);
 
-  router.get('/', (req, res) => {
-    res.json({ groups: listGroups(db, currentUserId(res)) });
+  router.get('/', async (req, res) => {
+    res.json({ groups: await listGroups(db, currentUserId(res)) });
   });
 
   router.post(
     '/',
     rateLimit(db, 'group-create', RATE_LIMITS.groupCreate, (req, res) => res.locals.userId ?? ''),
-    (req, res) => {
+    async (req, res) => {
       const userId = currentUserId(res);
       const input = parseBody(createGroupSchema, req.body);
-      const group = createGroup(db, userId, input.name);
+      const group = await createGroup(db, userId, input.name);
       res.status(201).json({ group, role: 'owner' });
     },
   );
@@ -61,10 +61,10 @@ export function groupRoutes(db: Db): Router {
   router.post(
     '/join',
     rateLimit(db, 'group-join', RATE_LIMITS.invitationJoin, (req, res) => res.locals.userId ?? ''),
-    (req, res) => {
+    async (req, res) => {
       const userId = currentUserId(res);
       const input = parseBody(joinSchema, req.body);
-      const result = joinGroupByCode(db, userId, input.code);
+      const result = await joinGroupByCode(db, userId, input.code);
       res.status(result.alreadyMember ? 200 : 201).json({
         ok: true,
         ...result,
@@ -75,17 +75,17 @@ export function groupRoutes(db: Db): Router {
     },
   );
 
-  router.get('/:groupId', (req, res) => {
+  router.get('/:groupId', async (req, res) => {
     const userId = currentUserId(res);
-    res.json(groupDetail(db, userId, param(req, 'groupId')));
+    res.json(await groupDetail(db, userId, param(req, 'groupId')));
   });
 
-  router.post('/:groupId/invitations', rateLimit(db, 'invitation-create', RATE_LIMITS.invitationCreate), (req, res) => {
+  router.post('/:groupId/invitations', rateLimit(db, 'invitation-create', RATE_LIMITS.invitationCreate), async (req, res) => {
     const userId = currentUserId(res);
     const groupId = param(req, 'groupId');
-    requireOwner(db, groupId, userId);
+    await requireOwner(db, groupId, userId);
     const input = parseBody(createInvitationSchema, req.body);
-    const invitation = createInvitation(db, userId, groupId, {
+    const invitation = await createInvitation(db, userId, groupId, {
       label: input.label ?? null,
       maxUses: input.maxUses,
       expiresInHours: input.expiresInHours,
@@ -96,28 +96,28 @@ export function groupRoutes(db: Db): Router {
     });
   });
 
-  router.delete('/:groupId/invitations/:invitationId', (req, res) => {
+  router.delete('/:groupId/invitations/:invitationId', async (req, res) => {
     const userId = currentUserId(res);
-    revokeInvitation(db, userId, param(req, 'invitationId'));
+    await revokeInvitation(db, userId, param(req, 'invitationId'));
     res.json({ ok: true });
   });
 
-  router.post('/:groupId/leave', (req, res) => {
+  router.post('/:groupId/leave', async (req, res) => {
     const userId = currentUserId(res);
-    const result = leaveGroup(db, userId, param(req, 'groupId'));
+    const result = await leaveGroup(db, userId, param(req, 'groupId'));
     res.json({ ok: true, ...result });
   });
 
-  router.post('/:groupId/competitions', (req, res) => {
-    syncCompetitionLifecycle(db);
-    ensurePublicCompetitions(db);
+  router.post('/:groupId/competitions', async (req, res) => {
+    await syncCompetitionLifecycle(db);
+    await ensurePublicCompetitions(db);
     const userId = currentUserId(res);
     const groupId = param(req, 'groupId');
-    requireMembership(db, groupId, userId);
+    await requireMembership(db, groupId, userId);
     const input = parseBody(createGroupCompetitionSchema, req.body);
     const startsAt = toIso(nowMs() + input.startsInHours * 3600_000);
     if (Date.parse(startsAt) < Date.parse(nowIso()) - 60_000) throw badRequest('Ogiltig starttid.');
-    const competition = createCompetition(db, {
+    const competition = await createCompetition(db, {
       name: input.name,
       description: input.description ?? '',
       durationDays: input.durationDays,

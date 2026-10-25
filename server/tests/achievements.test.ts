@@ -10,7 +10,7 @@ afterAll(() => setTestClock(null));
 
 describe('16. Achievements cannot be granted repeatedly', () => {
   it('awards each milestone once per goal and keeps the history', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const { client, user } = await signup(harness.app, 'badge@example.com', { alias: 'badge_samlare' });
       const goal = await createGoal(client, 'Sommarmål', 1_000_000);
@@ -32,11 +32,10 @@ describe('16. Achievements cannot be granted repeatedly', () => {
       expect(fourth.newlyEarned.map((award: { code: string }) => award.code)).toEqual(['halfway_there']);
 
       // A second verification pass must not create duplicates either.
-      const repeated = syncGoalAchievements(harness.db, user.id, goal.id, 400_000, 1_000_000);
+      const repeated = await syncGoalAchievements(harness.db, user.id, goal.id, 400_000, 1_000_000);
       expect(repeated).toEqual([]);
 
-      const counts = harness.db
-        .prepare(
+      const counts = await harness.db.prepare(
           `SELECT achievement_id, COUNT(*) AS count FROM user_achievements
            WHERE user_id = ? AND goal_id = ? GROUP BY achievement_id`,
         )
@@ -64,12 +63,12 @@ describe('16. Achievements cannot be granted repeatedly', () => {
       expect(afterArchive.totalEarned).toBe(3);
       expect(afterArchive.totalAwards).toBe(5);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 
   it('grants the full ladder exactly once at 100 %', async () => {
-    const harness = createHarness();
+    const harness = await createHarness();
     try {
       const { client } = await signup(harness.app, 'goal@example.com', { alias: 'mal_klart' });
       const goal = await createGoal(client, 'Klar', 100_000);
@@ -87,7 +86,7 @@ describe('16. Achievements cannot be granted repeatedly', () => {
       const extra = await deposit(client, goal.id, 50_000);
       expect(extra.newlyEarned).toEqual([]);
     } finally {
-      harness.close();
+      await harness.close();
     }
   });
 });

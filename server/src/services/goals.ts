@@ -1,5 +1,4 @@
 import type { Db } from '../db.js';
-import { immediate } from '../db.js';
 import { badRequest, conflict, notFound, forbidden } from '../lib/errors.js';
 import { uuid } from '../lib/ids.js';
 import { nowIso } from '../lib/time.js';
@@ -38,8 +37,8 @@ export interface GoalView {
   activeCompetitionCount: number;
 }
 
-export function getOwnedGoal(db: Db, userId: string, goalId: string): GoalRow {
-  const row = db
+export async function getOwnedGoal(db: Db, userId: string, goalId: string): Promise<GoalRow>{
+  const row = await db
     .prepare('SELECT * FROM savings_goals WHERE id = ? AND owner_id = ?')
     .get(goalId, userId) as GoalRow | undefined;
   // 404 (not 403) so that goal IDs of other users are not enumerable.
@@ -47,8 +46,8 @@ export function getOwnedGoal(db: Db, userId: string, goalId: string): GoalRow {
   return row;
 }
 
-export function competitionLockForGoal(db: Db, goalId: string): { count: number; locked: boolean } {
-  const row = db
+export async function competitionLockForGoal(db: Db, goalId: string): Promise<{ count: number; locked: boolean }> {
+  const row = await db
     .prepare(
       `SELECT COUNT(*) AS count FROM competition_participants p
        JOIN competitions c ON c.id = p.competition_id
@@ -58,9 +57,9 @@ export function competitionLockForGoal(db: Db, goalId: string): { count: number;
   return { count: row.count, locked: row.count > 0 };
 }
 
-export function goalMilestones(db: Db, goalId: string): GoalView['milestones'] {
-  const bps = progressBpsCached(db, goalId);
-  const rows = db
+export async function goalMilestones(db: Db, goalId: string): Promise<GoalView['milestones']>{
+  const bps = await progressBpsCached(db, goalId);
+  const rows = await db
     .prepare('SELECT code, name, badge, milestone_bps FROM achievements ORDER BY sort_order')
     .all() as Array<{ code: string; name: string; badge: string; milestone_bps: number }>;
   return rows.map((row) => ({
@@ -72,17 +71,17 @@ export function goalMilestones(db: Db, goalId: string): GoalView['milestones'] {
   }));
 }
 
-function progressBpsCached(db: Db, goalId: string): number {
-  const row = db.prepare('SELECT balance_ore, target_amount_ore FROM savings_goals WHERE id = ?').get(goalId) as
+async function progressBpsCached(db: Db, goalId: string): Promise<number>{
+  const row = await db.prepare('SELECT balance_ore, target_amount_ore FROM savings_goals WHERE id = ?').get(goalId) as
     | { balance_ore: number; target_amount_ore: number }
     | undefined;
   if (!row) return 0;
   return progressBps(row.balance_ore, row.target_amount_ore);
 }
 
-export function toGoalView(db: Db, goal: GoalRow): GoalView {
+export async function toGoalView(db: Db, goal: GoalRow): Promise<GoalView>{
   const bps = progressBps(goal.balance_ore, goal.target_amount_ore);
-  const lock = competitionLockForGoal(db, goal.id);
+  const lock = await competitionLockForGoal(db, goal.id);
   return {
     id: goal.id,
     name: goal.name,
@@ -97,21 +96,21 @@ export function toGoalView(db: Db, goal: GoalRow): GoalView {
     progressPercentage: Math.round(bps) / 100,
     remainingOre: Math.max(0, goal.target_amount_ore - goal.balance_ore),
     archived: goal.archived_at !== null,
-    milestones: goalMilestones(db, goal.id),
+    milestones: await goalMilestones(db, goal.id),
     lockedTarget: lock.locked,
     activeCompetitionCount: lock.count,
   };
 }
 
-export function listGoals(db: Db, userId: string, includeArchived: boolean): GoalView[] {
-  const rows = db
+export async function listGoals(db: Db, userId: string, includeArchived: boolean): Promise<GoalView[]>{
+  const rows = await db
     .prepare(
       `SELECT * FROM savings_goals
        WHERE owner_id = ? AND (? = 1 OR archived_at IS NULL)
-       ORDER BY archived_at IS NOT NULL, created_at DESC, rowid DESC`,
+       ORDER BY archived_at IS NOT NULL, created_at DESC, seq DESC`,
     )
     .all(userId, includeArchived ? 1 : 0) as GoalRow[];
-  return rows.map((row) => toGoalView(db, row));
+  return Promise.all(rows.map((row) => toGoalView(db, row)));
 }
 
 export interface CreateGoalInput {
@@ -120,14 +119,14 @@ export interface CreateGoalInput {
   privacy: 'private' | 'alias_visible';
 }
 
-export function createGoal(db: Db, userId: string, input: CreateGoalInput): GoalView {
+export async function createGoal(db: Db, userId: string, input: CreateGoalInput): Promise<GoalView>{
   const now = nowIso();
   const id = uuid();
-  db.prepare(
+  await db.prepare(
     `INSERT INTO savings_goals (id, owner_id, name, target_amount_ore, balance_ore, currency, privacy, created_at, updated_at)
      VALUES (?, ?, ?, ?, 0, 'SEK', ?, ?, ?)`,
   ).run(id, userId, input.name, input.targetAmountOre, input.privacy, now, now);
-  return toGoalView(db, getOwnedGoal(db, userId, id));
+  return await toGoalView(db, await getOwnedGoal(db, userId, id));
 }
 
 export interface UpdateGoalInput {
@@ -136,12 +135,12 @@ export interface UpdateGoalInput {
   privacy?: 'private' | 'alias_visible' | undefined;
 }
 
-export function updateGoal(db: Db, userId: string, goalId: string, input: UpdateGoalInput): GoalView {
-  return immediate(db, () => {
-    const goal = getOwnedGoal(db, userId, goalId);
+export async function updateGoal(db: Db, userId: string, goalId: string, input: UpdateGoalInput): Promise<GoalView>{
+  return await db.tx(async () => {
+    const goal = await getOwnedGoal(db, userId, goalId);
     if (goal.archived_at) throw conflict('Sparmålet är arkiverat. Avarkivera det först.');
     if (input.targetAmountOre !== undefined && input.targetAmountOre !== goal.target_amount_ore) {
-      const lock = competitionLockForGoal(db, goalId);
+      const lock = await competitionLockForGoal(db, goalId);
       if (lock.locked) {
         throw conflict('Målbeloppet är låst medan en tävling pågår eller väntar på start.');
       }
@@ -149,7 +148,7 @@ export function updateGoal(db: Db, userId: string, goalId: string, input: Update
         throw badRequest('Målbeloppet kan inte vara lägre än det redan sparade beloppet.');
       }
     }
-    db.prepare(
+    await db.prepare(
       `UPDATE savings_goals SET name = ?, target_amount_ore = ?, privacy = ?, updated_at = ? WHERE id = ? AND owner_id = ?`,
     ).run(
       input.name ?? goal.name,
@@ -159,33 +158,33 @@ export function updateGoal(db: Db, userId: string, goalId: string, input: Update
       goalId,
       userId,
     );
-    return toGoalView(db, getOwnedGoal(db, userId, goalId));
+    return await toGoalView(db, await getOwnedGoal(db, userId, goalId));
   });
 }
 
-export function setArchived(db: Db, userId: string, goalId: string, archived: boolean): GoalView {
-  return immediate(db, () => {
-    const goal = getOwnedGoal(db, userId, goalId);
+export async function setArchived(db: Db, userId: string, goalId: string, archived: boolean): Promise<GoalView>{
+  return await db.tx(async () => {
+    const goal = await getOwnedGoal(db, userId, goalId);
     if (archived) {
-      const lock = competitionLockForGoal(db, goalId);
+      const lock = await competitionLockForGoal(db, goalId);
       if (lock.locked) throw conflict('Du kan inte arkivera ett mål som deltar i en pågående tävling.');
     }
-    db.prepare('UPDATE savings_goals SET archived_at = ?, updated_at = ? WHERE id = ? AND owner_id = ?').run(
+    await db.prepare('UPDATE savings_goals SET archived_at = ?, updated_at = ? WHERE id = ? AND owner_id = ?').run(
       archived ? nowIso() : null,
       nowIso(),
       goal.id,
       userId,
     );
-    return toGoalView(db, getOwnedGoal(db, userId, goalId));
+    return await toGoalView(db, await getOwnedGoal(db, userId, goalId));
   });
 }
 
-export function deleteGoal(db: Db, userId: string, goalId: string): void {
-  immediate(db, () => {
-    const goal = getOwnedGoal(db, userId, goalId);
-    const lock = competitionLockForGoal(db, goal.id);
+export async function deleteGoal(db: Db, userId: string, goalId: string): Promise<void>{
+  await db.tx(async () => {
+    const goal = await getOwnedGoal(db, userId, goalId);
+    const lock = await competitionLockForGoal(db, goal.id);
     if (lock.locked) throw conflict('Du kan inte ta bort ett mål som deltar i en pågående tävling.');
-    db.prepare('DELETE FROM savings_goals WHERE id = ? AND owner_id = ?').run(goal.id, userId);
+    await db.prepare('DELETE FROM savings_goals WHERE id = ? AND owner_id = ?').run(goal.id, userId);
   });
 }
 
@@ -212,9 +211,9 @@ export interface MovementResult {
   newlyEarned: EarnedAchievement[];
 }
 
-export function recordMovement(db: Db, userId: string, goalId: string, input: MovementInput): MovementResult {
-  return immediate(db, () => {
-    const goal = getOwnedGoal(db, userId, goalId);
+export async function recordMovement(db: Db, userId: string, goalId: string, input: MovementInput): Promise<MovementResult>{
+  return await db.tx(async () => {
+    const goal = await getOwnedGoal(db, userId, goalId);
     if (goal.archived_at) throw conflict('Sparmålet är arkiverat och kan inte ta emot rörelser.');
 
     const delta = input.type === 'deposit' ? input.amountOre : -input.amountOre;
@@ -223,14 +222,14 @@ export function recordMovement(db: Db, userId: string, goalId: string, input: Mo
 
     const now = nowIso();
     const occurredAt = input.occurredAt ?? now;
-    db.prepare('UPDATE savings_goals SET balance_ore = ?, updated_at = ? WHERE id = ? AND owner_id = ?').run(
+    await db.prepare('UPDATE savings_goals SET balance_ore = ?, updated_at = ? WHERE id = ? AND owner_id = ?').run(
       nextBalance,
       now,
       goalId,
       userId,
     );
     const movementId = uuid();
-    db.prepare(
+    await db.prepare(
       `INSERT INTO savings_movements (id, owner_id, goal_id, type, amount_ore, balance_after_ore, note, occurred_at, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).run(
@@ -245,10 +244,10 @@ export function recordMovement(db: Db, userId: string, goalId: string, input: Mo
       now,
     );
 
-    const updated = getOwnedGoal(db, userId, goalId);
-    const newlyEarned = syncGoalAchievements(db, userId, updated.id, updated.balance_ore, updated.target_amount_ore);
+    const updated = await getOwnedGoal(db, userId, goalId);
+    const newlyEarned = await syncGoalAchievements(db, userId, updated.id, updated.balance_ore, updated.target_amount_ore);
     return {
-      goal: toGoalView(db, updated),
+      goal: await toGoalView(db, updated),
       movement: {
         id: movementId,
         type: input.type,
@@ -263,17 +262,17 @@ export function recordMovement(db: Db, userId: string, goalId: string, input: Mo
   });
 }
 
-export function listMovements(db: Db, userId: string, goalId: string): unknown[] {
-  getOwnedGoal(db, userId, goalId);
-  return db
+export async function listMovements(db: Db, userId: string, goalId: string): Promise<unknown[]>{
+  await getOwnedGoal(db, userId, goalId);
+  return await db
     .prepare(
-      `SELECT id, goal_id AS goalId, type, amount_ore AS amountOre, balance_after_ore AS balanceAfterOre,
-              note, occurred_at AS occurredAt, created_at AS createdAt
-       FROM savings_movements WHERE goal_id = ? AND owner_id = ? ORDER BY occurred_at DESC, created_at DESC`,
+      `SELECT id, goal_id AS "goalId", type, amount_ore AS "amountOre", balance_after_ore AS "balanceAfterOre",
+              note, occurred_at AS "occurredAt", created_at AS "createdAt"
+       FROM savings_movements WHERE goal_id = ? AND owner_id = ? ORDER BY occurred_at DESC, seq DESC`,
     )
     .all(goalId, userId);
 }
 
-export function assertGoalWritable(goal: GoalRow): void {
+export async function assertGoalWritable(goal: GoalRow): Promise<void>{
   if (goal.archived_at) throw forbidden('Sparmålet är arkiverat.');
 }

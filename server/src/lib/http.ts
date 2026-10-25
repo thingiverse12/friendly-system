@@ -29,20 +29,20 @@ export function param(req: Request, name: string): string {
 export function asyncHandler(
   fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown> | unknown,
 ): RequestHandler {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch(next);
   };
 }
 
 /** Loads the server-side session for every request; never trusts client-supplied identity. */
 export function sessionMiddleware(db: Db): RequestHandler {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const raw = getCookie(req, appConfig.sessionCookieName);
-    const session = raw ? findSession(db, raw) : null;
+    const session = raw ? await findSession(db, raw) : null;
     res.locals.session = session;
     res.locals.userId = session?.userId ?? null;
     res.locals.db = db;
-    if (session) touchSession(db, session.sessionId, nowIso());
+    if (session) await touchSession(db, session.sessionId, nowIso());
     next();
   };
 }
@@ -121,12 +121,12 @@ export function rateLimit(
   rule: RateLimitRule,
   keyExtractor?: (req: Request, res: Response) => string,
 ): RequestHandler {
-  return (req, res, next) => {
+  return async (req, res, next) => {
     // req.ip is resolved by Express through the trusted proxy chain (app.set('trust proxy')).
     const ip = req.ip ?? 'unknown';
     const extra = keyExtractor ? keyExtractor(req, res) : '';
     const key = `${scope}:${sha256(`${ip}|${extra}`).slice(0, 32)}`;
-    const result = consumeRateLimit(db, key, rule);
+    const result = await consumeRateLimit(db, key, rule);
     res.setHeader('X-RateLimit-Limit', String(rule.limit));
     res.setHeader('X-RateLimit-Remaining', String(result.remaining));
     if (!result.allowed) {

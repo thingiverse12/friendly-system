@@ -1,5 +1,5 @@
 import type { Db } from '../db.js';
-import { immediate, audit } from '../db.js';
+import { audit } from '../db.js';
 import { badRequest, conflict, forbidden, notFound, unauthorized } from '../lib/errors.js';
 import { competitionClass, competitionClassLabel, progressBps, scoreCenti } from '../lib/money.js';
 import { nowIso, nowMs, toIso, DAY_MS } from '../lib/time.js';
@@ -37,14 +37,14 @@ export interface ParticipantRow {
   final_rank: number | null;
 }
 
-export function getCompetition(db: Db, id: string): CompetitionRow {
-  const row = db.prepare('SELECT * FROM competitions WHERE id = ?').get(id) as CompetitionRow | undefined;
+export async function getCompetition(db: Db, id: string): Promise<CompetitionRow>{
+  const row = await db.prepare('SELECT * FROM competitions WHERE id = ?').get(id) as CompetitionRow | undefined;
   if (!row) throw notFound('Tävlingen hittades inte.');
   return row;
 }
 
-export function getParticipant(db: Db, competitionId: string, userId: string): ParticipantRow | undefined {
-  return db
+export async function getParticipant(db: Db, competitionId: string, userId: string): Promise<ParticipantRow | undefined>{
+  return await db
     .prepare('SELECT * FROM competition_participants WHERE competition_id = ? AND user_id = ?')
     .get(competitionId, userId) as ParticipantRow | undefined;
 }
@@ -53,7 +53,7 @@ export function getParticipant(db: Db, competitionId: string, userId: string): P
  * Lifecycle
  * ------------------------------------------------------------------ */
 
-export function createCompetition(
+export async function createCompetition(
   db: Db,
   input: {
     name: string;
@@ -64,11 +64,11 @@ export function createCompetition(
     startsAt: string;
     createdBy?: string | null;
   },
-): CompetitionRow {
+): Promise<CompetitionRow>{
   const id = uuid();
   const startsAtMs = Date.parse(input.startsAt);
   const endsAt = toIso(startsAtMs + input.durationDays * DAY_MS);
-  db.prepare(
+  await db.prepare(
     `INSERT INTO competitions (id, name, description, duration_days, visibility, group_id, status, starts_at, ends_at, created_by, created_at)
      VALUES (?, ?, ?, ?, ?, ?, 'upcoming', ?, ?, ?, ?)`,
   ).run(
@@ -83,13 +83,13 @@ export function createCompetition(
     input.createdBy ?? null,
     nowIso(),
   );
-  return getCompetition(db, id);
+  return await getCompetition(db, id);
 }
 
 /** Freezes the starting snapshot of every eligible participant. Server time only. */
-function freezeSnapshots(db: Db, competitionId: string): void {
+async function freezeSnapshots(db: Db, competitionId: string): Promise<void>{
   const now = nowIso();
-  const participants = db
+  const participants = await db
     .prepare(
       `SELECT * FROM competition_participants
        WHERE competition_id = ? AND snapshot_frozen_at IS NULL AND withdrawn_at IS NULL`,
@@ -105,15 +105,15 @@ function freezeSnapshots(db: Db, competitionId: string): void {
     'UPDATE competition_participants SET withdrawn_at = ? WHERE id = ? AND withdrawn_at IS NULL',
   );
   for (const participant of participants) {
-    const goal = goalStmt.get(participant.goal_id) as
+    const goal = await goalStmt.get(participant.goal_id) as
       | { id: string; owner_id: string; target_amount_ore: number; balance_ore: number; archived_at: string | null }
       | undefined;
     if (!goal || goal.owner_id !== participant.user_id || goal.archived_at) {
-      withdraw.run(now, participant.id);
+      await withdraw.run(now, participant.id);
       continue;
     }
     const lockedTarget = participant.locked_target_ore > 0 ? participant.locked_target_ore : goal.target_amount_ore;
-    update.run(
+    await update.run(
       goal.balance_ore,
       lockedTarget,
       competitionClass(lockedTarget, goal.balance_ore),
@@ -123,18 +123,18 @@ function freezeSnapshots(db: Db, competitionId: string): void {
   }
 }
 
-function finaliseCompetition(db: Db, competition: CompetitionRow): void {
-  freezeSnapshots(db, competition.id);
-  const rows = currentScores(db, competition.id);
-  const ranked = rankRows(rows);
+async function finaliseCompetition(db: Db, competition: CompetitionRow): Promise<void>{
+  await freezeSnapshots(db, competition.id);
+  const rows = await currentScores(db, competition.id);
+  const ranked = await rankRows(rows);
   const update = db.prepare(
     `UPDATE competition_participants SET final_score_centi = ?, final_rank = ?
      WHERE id = ? AND final_score_centi IS NULL`,
   );
   for (const row of ranked) {
-    update.run(row.scoreCenti, row.rank, row.participantId);
+    await update.run(row.scoreCenti, row.rank, row.participantId);
   }
-  db.prepare(
+  await db.prepare(
     `UPDATE competitions SET status = 'completed', finalised_at = ?
      WHERE id = ? AND status = 'active' AND finalised_at IS NULL`,
   ).run(nowIso(), competition.id);
@@ -146,31 +146,31 @@ function finaliseCompetition(db: Db, competition: CompetitionRow): void {
  *  - upcoming competitions whose start time has passed are atomically activated and snapshotted,
  *  - active competitions whose end time has passed get their final scores frozen.
  */
-export function syncCompetitionLifecycle(db: Db): void {
+export async function syncCompetitionLifecycle(db: Db): Promise<void>{
   const now = nowIso();
-  const toStart = db
+  const toStart = await db
     .prepare(`SELECT id FROM competitions WHERE status = 'upcoming' AND starts_at <= ?`)
     .all(now) as Array<{ id: string }>;
   for (const { id } of toStart) {
-    immediate(db, () => {
-      freezeSnapshots(db, id);
-      db.prepare(`UPDATE competitions SET status = 'active' WHERE id = ? AND status = 'upcoming'`).run(id);
+    await db.tx(async () => {
+      await freezeSnapshots(db, id);
+      await db.prepare(`UPDATE competitions SET status = 'active' WHERE id = ? AND status = 'upcoming'`).run(id);
       audit(db, 'competition.started', null, id);
     });
   }
-  const toEnd = db
+  const toEnd = await db
     .prepare(`SELECT * FROM competitions WHERE status = 'active' AND ends_at <= ?`)
     .all(now) as CompetitionRow[];
   for (const competition of toEnd) {
-    immediate(db, () => finaliseCompetition(db, competition));
+    await db.tx(async () => await finaliseCompetition(db, competition));
   }
 }
 
 /** Keeps 7- and 30-day public competitions available without any external scheduler. */
-export function ensurePublicCompetitions(db: Db): void {
+export async function ensurePublicCompetitions(db: Db): Promise<void>{
   const now = nowMs();
   for (const durationDays of [7, 30] as const) {
-    const active = db
+    const active = await db
       .prepare(
         `SELECT COUNT(*) AS count FROM competitions
          WHERE visibility = 'public' AND duration_days = ? AND status IN ('upcoming', 'active')
@@ -179,7 +179,7 @@ export function ensurePublicCompetitions(db: Db): void {
       .get(durationDays, toIso(now)) as { count: number };
     if (active.count > 0) continue;
     const label = durationDays === 7 ? '7-dagars spartävling' : '30-dagars spartävling';
-    createCompetition(db, {
+    await createCompetition(db, {
       name: label,
       description:
         durationDays === 7
@@ -200,14 +200,14 @@ export interface JoinInput {
   goalId: string;
 }
 
-export function joinCompetition(
+export async function joinCompetition(
   db: Db,
   userId: string,
   competitionId: string,
   input: JoinInput,
-): { competition: CompetitionRow; participant: ParticipantRow; joinedActive: boolean } {
-  return immediate(db, () => {
-    const competition = getCompetition(db, competitionId);
+): Promise<{ competition: CompetitionRow; participant: ParticipantRow; joinedActive: boolean }> {
+  return await db.tx(async () => {
+    const competition = await getCompetition(db, competitionId);
     if (competition.status === 'completed' || competition.status === 'cancelled') {
       throw conflict('Tävlingen är avslutad och går inte att gå med i.');
     }
@@ -216,7 +216,7 @@ export function joinCompetition(
     if (endsAtMs <= Date.parse(now)) throw conflict('Tävlingen har redan avslutats.');
 
     if (competition.visibility === 'public') {
-      const profile = db
+      const profile = await db
         .prepare('SELECT public_competition_consent FROM profiles WHERE user_id = ?')
         .get(userId) as { public_competition_consent: number } | undefined;
       if (!profile) throw unauthorized();
@@ -225,14 +225,14 @@ export function joinCompetition(
       }
     } else {
       if (!competition.group_id) throw badRequest('Privat tävling saknar grupp.');
-      const member = db
+      const member = await db
         .prepare('SELECT 1 AS ok FROM group_members WHERE group_id = ? AND user_id = ?')
         .get(competition.group_id, userId) as { ok: number } | undefined;
       // 404 rather than 403 so a private competition is not even discoverable by outsiders.
       if (!member) throw notFound('Tävlingen hittades inte.');
     }
 
-    const goal = db
+    const goal = await db
       .prepare('SELECT * FROM savings_goals WHERE id = ? AND owner_id = ?')
       .get(input.goalId, userId) as
       | { id: string; target_amount_ore: number; balance_ore: number; archived_at: string | null }
@@ -240,7 +240,7 @@ export function joinCompetition(
     if (!goal) throw notFound('Sparmålet hittades inte.');
     if (goal.archived_at) throw conflict('Ett arkiverat sparmål kan inte användas i en tävling.');
 
-    const existing = getParticipant(db, competitionId, userId);
+    const existing = await getParticipant(db, competitionId, userId);
     if (existing) throw conflict('Du deltar redan i den här tävlingen.');
 
     const id = uuid();
@@ -248,7 +248,7 @@ export function joinCompetition(
     // competition snapshot_frozen_at stays NULL until the server starts it.
     const started = competition.status === 'active' && Date.parse(competition.starts_at) <= Date.parse(now);
     try {
-      db.prepare(
+      await db.prepare(
         `INSERT INTO competition_participants
           (id, competition_id, user_id, goal_id, starting_balance_ore, locked_target_ore, class_code,
            snapshot_frozen_at, joined_at)
@@ -271,7 +271,7 @@ export function joinCompetition(
     audit(db, 'competition.joined', userId, competitionId, { goalId: goal.id });
     return {
       competition,
-      participant: db
+      participant: await db
         .prepare('SELECT * FROM competition_participants WHERE id = ?')
         .get(id) as ParticipantRow,
       joinedActive: started,
@@ -279,16 +279,16 @@ export function joinCompetition(
   });
 }
 
-export function withdrawFromCompetition(db: Db, userId: string, competitionId: string): void {
-  immediate(db, () => {
-    const competition = getCompetition(db, competitionId);
-    const participant = getParticipant(db, competitionId, userId);
+export async function withdrawFromCompetition(db: Db, userId: string, competitionId: string): Promise<void>{
+  await db.tx(async () => {
+    const competition = await getCompetition(db, competitionId);
+    const participant = await getParticipant(db, competitionId, userId);
     if (!participant) throw notFound('Du deltar inte i den här tävlingen.');
     if (participant.withdrawn_at) throw conflict('Du har redan lämnat tävlingen.');
     if (competition.status === 'completed' || competition.finalised_at) {
       throw conflict('Tävlingen är avslutad. Resultatet är låst.');
     }
-    db.prepare('UPDATE competition_participants SET withdrawn_at = ? WHERE id = ?').run(nowIso(), participant.id);
+    await db.prepare('UPDATE competition_participants SET withdrawn_at = ? WHERE id = ?').run(nowIso(), participant.id);
     audit(db, 'competition.withdrawn', userId, competitionId);
   });
 }
@@ -310,17 +310,17 @@ interface RankedRow extends ScoreRow {
   rank: number;
 }
 
-function currentScores(db: Db, competitionId: string): ScoreRow[] {
-  const rows = db
+async function currentScores(db: Db, competitionId: string): Promise<ScoreRow[]>{
+  const rows = await db
     .prepare(
-      `SELECT p.id AS participantId, p.user_id AS userId, p.starting_balance_ore AS startingBalance,
-              p.locked_target_ore AS lockedTarget, p.class_code AS classCode,
-              p.snapshot_frozen_at AS frozenAt, p.final_score_centi AS finalScore,
-              g.balance_ore AS currentBalance, pr.alias AS alias
+      `SELECT p.id AS "participantId", p.user_id AS "userId", p.starting_balance_ore AS "startingBalance",
+              p.locked_target_ore AS "lockedTarget", p.class_code AS "classCode",
+              p.snapshot_frozen_at AS "frozenAt", p.final_score_centi AS "finalScore",
+              g.balance_ore AS "currentBalance", pr.alias AS alias
        FROM competition_participants p
        JOIN savings_goals g ON g.id = p.goal_id AND g.owner_id = p.user_id
        JOIN profiles pr ON pr.user_id = p.user_id
-       JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL
+       JOIN users u ON u.id = p.user_id
        WHERE p.competition_id = ? AND p.withdrawn_at IS NULL AND p.snapshot_frozen_at IS NOT NULL`,
     )
     .all(competitionId) as Array<{
@@ -350,7 +350,7 @@ function currentScores(db: Db, competitionId: string): ScoreRow[] {
 }
 
 /** Competition ranking: tied scores share a rank, the next rank skips (1,2,2,4). */
-function rankRows(rows: ScoreRow[]): RankedRow[] {
+async function rankRows(rows: ScoreRow[]): Promise<RankedRow[]>{
   const sorted = [...rows].sort((a, b) => {
     if (b.scoreCenti !== a.scoreCenti) return b.scoreCenti - a.scoreCenti;
     return a.alias.localeCompare(b.alias, 'sv');
@@ -379,28 +379,28 @@ export interface LeaderboardEntry {
  * Dedicated read model: only alias, rank, score, class and an explicitly approved badge ever leave
  * the server. Balances, targets, goals and transactions are never selected into this projection.
  */
-export function leaderboard(
+export async function leaderboard(
   db: Db,
   competition: CompetitionRow,
   viewerUserId: string | null,
-): {
+): Promise<{
   competition: CompetitionRow;
   entries: LeaderboardEntry[];
   classLabel: string | null;
   startsInSeconds: number | null;
   endsInSeconds: number | null;
   requiresConsent: boolean;
-} {
+}> {
   const frozenScores = competition.status === 'completed';
   let entries: LeaderboardEntry[];
   if (frozenScores) {
-    const rows = db
+    const rows = await db
       .prepare(
-        `SELECT p.final_rank AS rank, pr.alias AS alias, p.final_score_centi AS scoreCenti,
-                p.class_code AS classCode, p.user_id AS userId
+        `SELECT p.final_rank AS rank, pr.alias AS alias, p.final_score_centi AS "scoreCenti",
+                p.class_code AS "classCode", p.user_id AS "userId"
          FROM competition_participants p
          JOIN profiles pr ON pr.user_id = p.user_id
-         JOIN users u ON u.id = p.user_id AND u.deleted_at IS NULL
+         JOIN users u ON u.id = p.user_id
          WHERE p.competition_id = ? AND p.final_rank IS NOT NULL
          ORDER BY p.final_rank ASC, pr.alias ASC`,
       )
@@ -411,26 +411,30 @@ export function leaderboard(
       classCode: string;
       userId: string;
     }>;
-    entries = rows.map((row) => ({
-      rank: row.rank,
-      alias: row.alias,
-      score: row.scoreCenti / 100,
-      scoreCenti: row.scoreCenti,
-      classCode: row.classCode,
-      badge: topBadgeFor(db, row.userId),
-      isYou: viewerUserId !== null && row.userId === viewerUserId,
-    }));
+    entries = await Promise.all(
+      rows.map(async (row) => ({
+        rank: row.rank,
+        alias: row.alias,
+        score: row.scoreCenti / 100,
+        scoreCenti: row.scoreCenti,
+        classCode: row.classCode,
+        badge: await topBadgeFor(db, row.userId),
+        isYou: viewerUserId !== null && row.userId === viewerUserId,
+      })),
+    );
   } else {
-    const ranked = rankRows(currentScores(db, competition.id));
-    entries = ranked.map((row) => ({
-      rank: row.rank,
-      alias: row.alias,
-      score: row.scoreCenti / 100,
-      scoreCenti: row.scoreCenti,
-      classCode: row.classCode,
-      badge: topBadgeFor(db, row.userId),
-      isYou: viewerUserId !== null && row.userId === viewerUserId,
-    }));
+    const ranked = await rankRows(await currentScores(db, competition.id));
+    entries = await Promise.all(
+      ranked.map(async (row) => ({
+        rank: row.rank,
+        alias: row.alias,
+        score: row.scoreCenti / 100,
+        scoreCenti: row.scoreCenti,
+        classCode: row.classCode,
+        badge: await topBadgeFor(db, row.userId),
+        isYou: viewerUserId !== null && row.userId === viewerUserId,
+      })),
+    );
   }
   const now = nowMs();
   return {
@@ -465,18 +469,18 @@ export interface CompetitionSummary {
   myScore: number | null;
 }
 
-function toSummary(
+async function toSummary(
   db: Db,
   competition: CompetitionRow,
   userId: string | null,
-): CompetitionSummary {
-  const count = db
+): Promise<CompetitionSummary>{
+  const count = await db
     .prepare(
       `SELECT COUNT(*) AS count FROM competition_participants
        WHERE competition_id = ? AND withdrawn_at IS NULL`,
     )
     .get(competition.id) as { count: number };
-  const participant = userId ? getParticipant(db, competition.id, userId) : undefined;
+  const participant = userId ? await getParticipant(db, competition.id, userId) : undefined;
   let myRank: number | null = null;
   let myScore: number | null = null;
   if (participant && !participant.withdrawn_at && userId) {
@@ -484,7 +488,7 @@ function toSummary(
       myScore = participant.final_score_centi / 100;
       myRank = participant.final_rank;
     } else {
-      const ranked = rankRows(currentScores(db, competition.id));
+      const ranked = await rankRows(await currentScores(db, competition.id));
       const mine = ranked.find((row) => row.userId === userId);
       if (mine) {
         myScore = mine.scoreCenti / 100;
@@ -511,13 +515,13 @@ function toSummary(
   };
 }
 
-export function discoverCompetitions(db: Db, userId: string | null): {
+export async function discoverCompetitions(db: Db, userId: string | null): Promise<{
   public: CompetitionSummary[];
   mine: CompetitionSummary[];
   groups: Array<{ groupId: string; groupName: string; competitions: CompetitionSummary[] }>;
-} {
+}> {
   const now = nowIso();
-  const publicRows = db
+  const publicRows = await db
     .prepare(
       `SELECT * FROM competitions
        WHERE visibility = 'public' AND status IN ('upcoming', 'active', 'completed')
@@ -526,13 +530,15 @@ export function discoverCompetitions(db: Db, userId: string | null): {
     )
     .all() as CompetitionRow[];
 
-  const publicList = publicRows
-    .filter((row) => row.status !== 'completed' || Date.parse(row.ends_at) > Date.parse(now) - 14 * DAY_MS)
-    .map((row) => toSummary(db, row, userId));
+  const publicList = await Promise.all(
+    publicRows
+      .filter((row) => row.status !== 'completed' || Date.parse(row.ends_at) > Date.parse(now) - 14 * DAY_MS)
+      .map((row) => toSummary(db, row, userId)),
+  );
 
   if (!userId) return { public: publicList, mine: [], groups: [] };
 
-  const mineRows = db
+  const mineRows = await db
     .prepare(
       `SELECT c.* FROM competitions c
        JOIN competition_participants p ON p.competition_id = c.id
@@ -542,16 +548,16 @@ export function discoverCompetitions(db: Db, userId: string | null): {
     )
     .all(userId) as CompetitionRow[];
 
-  const groupRows = db
+  const groupRows = await db
     .prepare(
-      `SELECT g.id AS groupId, g.name AS groupName
+      `SELECT g.id AS "groupId", g.name AS "groupName"
        FROM private_groups g JOIN group_members m ON m.group_id = g.id
        WHERE m.user_id = ? ORDER BY g.created_at ASC`,
     )
     .all(userId) as Array<{ groupId: string; groupName: string }>;
 
-  const groups = groupRows.map((group) => {
-    const rows = db
+  const groups = await Promise.all(groupRows.map(async (group) => {
+    const rows = await db
       .prepare(
         `SELECT * FROM competitions WHERE group_id = ?
          ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'upcoming' THEN 1 ELSE 2 END, ends_at DESC
@@ -561,31 +567,31 @@ export function discoverCompetitions(db: Db, userId: string | null): {
     return {
       groupId: group.groupId,
       groupName: group.groupName,
-      competitions: rows.map((row) => toSummary(db, row, userId)),
+      competitions: await Promise.all(rows.map((row) => toSummary(db, row, userId))),
     };
-  });
+  }));
 
   return {
     public: publicList,
-    mine: mineRows.map((row) => toSummary(db, row, userId)),
+    mine: await Promise.all(mineRows.map((row) => toSummary(db, row, userId))),
     groups,
   };
 }
 
-export function canViewCompetition(db: Db, competition: CompetitionRow, userId: string | null): boolean {
+export async function canViewCompetition(db: Db, competition: CompetitionRow, userId: string | null): Promise<boolean>{
   if (competition.visibility === 'public') return true;
   if (!userId || !competition.group_id) return false;
-  const member = db
+  const member = await db
     .prepare('SELECT 1 AS ok FROM group_members WHERE group_id = ? AND user_id = ?')
     .get(competition.group_id, userId) as { ok: number } | undefined;
   return Boolean(member);
 }
 
-export function myParticipationView(
+export async function myParticipationView(
   db: Db,
   competition: CompetitionRow,
   userId: string | null,
-): {
+): Promise<{
   joined: boolean;
   withdrawn: boolean;
   goalId: string | null;
@@ -597,7 +603,7 @@ export function myParticipationView(
   lockedTargetOre: number | null;
   snapshotFrozen: boolean;
   progressBps: number | null;
-} {
+}> {
   if (!userId) {
     return {
       joined: false,
@@ -613,7 +619,7 @@ export function myParticipationView(
       progressBps: null,
     };
   }
-  const participant = getParticipant(db, competition.id, userId);
+  const participant = await getParticipant(db, competition.id, userId);
   if (!participant) {
     return {
       joined: false,
@@ -629,7 +635,7 @@ export function myParticipationView(
       progressBps: null,
     };
   }
-  const goal = db
+  const goal = await db
     .prepare('SELECT balance_ore FROM savings_goals WHERE id = ? AND owner_id = ?')
     .get(participant.goal_id, userId) as { balance_ore: number } | undefined;
   const frozen = participant.snapshot_frozen_at !== null;
@@ -641,7 +647,7 @@ export function myParticipationView(
         : null;
   const leaderboardRows = competition.status === 'completed'
     ? null
-    : rankRows(currentScores(db, competition.id));
+    : await rankRows(await currentScores(db, competition.id));
   const mine = leaderboardRows?.find((row) => row.userId === userId);
   return {
     joined: !participant.withdrawn_at,

@@ -72,7 +72,8 @@ export function competitionClass(lockedTargetOre: number, startingOre: number): 
   return `${targetBand}${startBand}`;
 }
 
-export function competitionClassLabel(code: string): string {
+export function competitionClassLabel(code: string | null | undefined): string {
+  if (!code) return 'Okänd klass';
   const targetLabels: Record<string, string> = {
     A: 'mål under 5 000 kr',
     B: 'mål 5 000–20 000 kr',

@@ -6,6 +6,7 @@ import { config } from './config.js';
 import { AppError } from './lib/errors.js';
 import { csrfMiddleware, sessionMiddleware } from './lib/http.js';
 import { authRoutes, profileRoutes } from './routes/auth.js';
+import { defaultAuthProvider, type AuthProvider } from './services/supabase.js';
 import { goalRoutes } from './routes/goals.js';
 import { transactionRoutes } from './routes/transactions.js';
 import { achievementRoutes, dashboardRoutes } from './routes/achievements.js';
@@ -76,7 +77,7 @@ const errorHandler = (error: unknown, _req: Request, res: Response, _next: NextF
   res.status(500).json({ error: { code: 'internal_error', message: 'Något gick fel. Försök igen.' } });
 };
 
-export function createApp(db: Db) {
+export function createApp(db: Db, auth: AuthProvider = defaultAuthProvider()) {
   const app = express();
 
   app.disable('x-powered-by');
@@ -92,8 +93,8 @@ export function createApp(db: Db) {
   // Every mutating API request must be same-origin and carry the double-submit CSRF token.
   app.use('/api', csrfMiddleware);
 
-  app.use('/api/auth', authRoutes(db));
-  app.use('/api/profile', profileRoutes(db));
+  app.use('/api/auth', authRoutes(db, auth));
+  app.use('/api/profile', profileRoutes(db, auth));
   app.use('/api/dashboard', dashboardRoutes(db));
   app.use('/api/goals', goalRoutes(db));
   app.use('/api/transactions', transactionRoutes(db));
