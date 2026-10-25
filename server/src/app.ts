@@ -87,10 +87,39 @@ export function createApp(db: Db, auth: AuthProvider = defaultAuthProvider()) {
   app.use(securityHeaders);
   app.use(sessionMiddleware(db));
 
+  // Presence flags only — never the values. Lets an operator confirm that the deployment really
+  // received its Supabase credentials, and that Supabase Auth answers from this network, without
+  // exposing a secret over HTTP.
+  const authEnv = {
+    supabaseUrl: Boolean(config.supabaseUrl),
+    anonKey: Boolean(config.supabaseAnonKey),
+    serviceRoleKey: Boolean(config.supabaseServiceRoleKey),
+  };
+
+  const authStatus = async (): Promise<Record<string, unknown>> => {
+    if (!config.supabaseUrl) return { ...authEnv, reachable: false };
+    try {
+      const response = await fetch(`${config.supabaseUrl}/auth/v1/health`, {
+        headers: config.supabaseAnonKey ? { apikey: config.supabaseAnonKey } : {},
+        signal: AbortSignal.timeout(2500),
+      });
+      return { ...authEnv, reachable: response.ok, status: response.status };
+    } catch (error) {
+      return { ...authEnv, reachable: false, detail: (error as Error).name };
+    }
+  };
+
   app.get('/api/health', async (_req, res) => {
     try {
       await db.one('SELECT 1 AS ok');
-      res.json({ status: 'ok', time: nowIso(), version: '1.0.0', database: 'ok', databaseHost: databaseHost() ?? undefined });
+      res.json({
+        status: 'ok',
+        time: nowIso(),
+        version: '1.0.0',
+        database: 'ok',
+        databaseHost: databaseHost() ?? undefined,
+        auth: await authStatus(),
+      });
     } catch (error) {
       res.status(503).json({
         status: 'degraded',
@@ -98,6 +127,7 @@ export function createApp(db: Db, auth: AuthProvider = defaultAuthProvider()) {
         version: '1.0.0',
         database: 'error',
         databaseHost: databaseHost() ?? undefined,
+        authEnv,
         detail: (error as Error).message,
       });
     }
