@@ -142,7 +142,7 @@ export async function createPgDatabase(connectionString: string): Promise<Db> {
   pg.types.setTypeParser(20, (value: string) => Number(value));
   pg.types.setTypeParser(1700, (value: string) => Number(value));
   const ssl = connectionString.includes('supabase.co') || config.databaseSsl ? { rejectUnauthorized: false } : undefined;
-  const pool = new pg.Pool({ connectionString, ssl, max: config.databasePoolSize });
+  const pool = new pg.Pool({ connectionString, ssl, max: config.databasePoolSize, connectionTimeoutMillis: 8000 });
   const db = scopeAware(fromPg(pool as unknown as PgLike, false));
   await db.exec('SELECT 1');
   return db;
@@ -227,21 +227,24 @@ function hostOf(connectionString: string): string {
 
 export async function createDatabase(): Promise<Db> {
   if (config.databaseUrls.length > 0) {
-    let lastError: unknown = null;
+    const failures: string[] = [];
     for (const candidate of config.databaseUrls) {
+      const host = hostOf(candidate);
       try {
         const db = await createPgDatabase(candidate);
-        activeDatabaseHost = hostOf(candidate);
+        activeDatabaseHost = host;
         if (config.databaseUrls.length > 1) {
-          console.log(`[sparly] connected to ${activeDatabaseHost}`);
+          console.log(`[sparly] connected to ${host}`);
         }
         return db;
       } catch (error) {
-        lastError = error;
-        console.warn(`[sparly] database candidate ${hostOf(candidate)} failed: ${(error as Error).message}`);
+        const code = (error as { code?: string }).code;
+        const message = `${host}: ${code ? `${code} ` : ''}${(error as Error).message}`;
+        failures.push(message);
+        console.warn(`[sparly] database candidate failed — ${message}`);
       }
     }
-    throw lastError ?? new Error('Ingen databasanslutning lyckades.');
+    throw new Error(failures.join(' | '));
   }
   if (config.isProduction) {
     throw new Error('DATABASE_URL måste vara satt i produktion (Supabase Postgres).');
