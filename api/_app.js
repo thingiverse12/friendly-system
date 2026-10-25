@@ -34,6 +34,17 @@ async function boot() {
   return app;
 }
 
+function app() {
+  if (!ready) {
+    ready = boot().catch((error) => {
+      // A failed cold start must not be cached forever: the next request retries.
+      ready = null;
+      throw error;
+    });
+  }
+  return ready;
+}
+
 /**
  * `vercel.json` rewrites every `/api/*` request to this function and passes the original path in a
  * `path` query parameter. Restore the real URL before Express sees it, so routing and the CSRF
