@@ -10,6 +10,7 @@ import {
 } from 'react';
 import { Icon, type IconName } from './Icon';
 import { EmptyIllustration } from './Illustrations';
+import { Mascot } from './Mascot';
 
 /* ------------------------------- progress ------------------------------- */
 
@@ -323,15 +324,18 @@ export function EmptyState({
   description,
   action,
   variant = 'goal',
+  mascot = false,
 }: {
   title: string;
   description: string;
   action?: ReactNode;
   variant?: 'goal' | 'trophy' | 'receipt';
+  /** Show the Sparly dog instead of the abstract illustration. */
+  mascot?: boolean;
 }) {
   return (
     <div className="empty-state">
-      <EmptyIllustration variant={variant} />
+      {mascot ? <Mascot variant="face" size={136} className="empty-state__mascot" /> : <EmptyIllustration variant={variant} />}
       <h3>{title}</h3>
       <p>{description}</p>
       {action ? <div className="empty-state__action">{action}</div> : null}

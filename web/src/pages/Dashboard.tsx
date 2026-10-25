@@ -179,6 +179,7 @@ export function Dashboard() {
                 {data.goals.length === 0 ? (
                   <div className="card">
                     <EmptyState
+                      mascot
                       title="Inga sparmål än"
                       description="Skapa ditt första mål och börja bygga din buffert, en liten summa i taget."
                       action={

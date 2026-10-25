@@ -67,6 +67,7 @@ export function Goals() {
         visible.length === 0 ? (
           <div className="card">
             <EmptyState
+              mascot
               title={tab === 'active' ? 'Inga aktiva sparmål' : 'Inga arkiverade sparmål'}
               description={
                 tab === 'active'

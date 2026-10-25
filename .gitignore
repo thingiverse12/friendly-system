@@ -13,3 +13,4 @@ web/dist/
 coverage/
 .vite/
 .secrets/
+assets/reference/

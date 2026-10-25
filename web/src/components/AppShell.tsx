@@ -5,6 +5,7 @@ import { useToast } from '../toast';
 import { initials } from '../format';
 import { Icon, type IconName } from './Icon';
 import { Logo } from './Illustrations';
+import { Mascot } from './Mascot';
 
 const NAV: Array<{ to: string; label: string; icon: IconName; end?: boolean }> = [
   { to: '/', label: 'Hem', icon: 'home', end: true },
@@ -68,6 +69,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             </NavLink>
           ))}
         </nav>
+
+        <div className="sidebar__mascot">
+          <Mascot size={92} />
+          <p className="sidebar__mascot-line">Jag håller koll på dina steg.</p>
+        </div>
 
         {level ? (
           <div className="sidebar__level">

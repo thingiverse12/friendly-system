@@ -37,6 +37,31 @@ describe('18. The application works on mobile and desktop (static + delivery che
     expect(shell).toContain('skip-link');
   });
 
+  it('ships the Sparly dog mascot in every size the UI asks for', () => {
+    const mascotDir = path.join(root, 'web/public/mascot');
+    // Every file referenced by Mascot.tsx and the web manifest must exist and be a real PNG.
+    const component = fs.readFileSync(path.join(root, 'web/src/components/Mascot.tsx'), 'utf8');
+    const referenced = [...component.matchAll(/\/mascot\/([\w.-]+\.png)/g)].map((match) => match[1]);
+    expect(referenced.length).toBeGreaterThan(0);
+
+    const manifest = JSON.parse(fs.readFileSync(path.join(root, 'web/public/manifest.webmanifest'), 'utf8'));
+    for (const icon of manifest.icons) referenced.push(icon.src.replace('/mascot/', ''));
+
+    const html = fs.readFileSync(path.join(root, 'web/index.html'), 'utf8');
+    for (const match of html.matchAll(/\/mascot\/([\w.-]+\.png)/g)) referenced.push(match[1]);
+
+    for (const file of new Set(referenced)) {
+      const buffer = fs.readFileSync(path.join(mascotDir, file));
+      expect(buffer.subarray(1, 4).toString(), file).toBe('PNG');
+      expect(buffer.length, file).toBeLessThan(600_000);
+    }
+
+    // The mascot is actually used: hero on the auth screen, companion in the sidebar, empty states.
+    expect(fs.readFileSync(path.join(root, 'web/src/pages/AuthPage.tsx'), 'utf8')).toContain('auth__mascot');
+    expect(fs.readFileSync(path.join(root, 'web/src/components/AppShell.tsx'), 'utf8')).toContain('sidebar__mascot');
+    expect(fs.readFileSync(path.join(root, 'web/src/components/UI.tsx'), 'utf8')).toContain('empty-state__mascot');
+  });
+
   it('serves the built SPA for deep links so mobile browsers can reload any tab', async () => {
     const indexPath = path.join(root, 'web/dist/index.html');
     if (!fs.existsSync(indexPath)) {

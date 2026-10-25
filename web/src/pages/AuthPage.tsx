@@ -4,6 +4,7 @@ import { ApiError } from '../api';
 import { useAuth } from '../auth';
 import { useToast } from '../toast';
 import { FjordScene, Logo } from '../components/Illustrations';
+import { Mascot } from '../components/Mascot';
 import { Banner, Button, TextField } from '../components/UI';
 import { Icon } from '../components/Icon';
 
@@ -130,6 +131,9 @@ export function AuthPage({ mode }: { mode: Mode }) {
         <FjordScene className="auth__scene" variant="night" />
         <div style={{ position: 'relative', zIndex: 2 }}>
           <Logo light />
+        </div>
+        <div className="auth__mascot">
+          <Mascot size={300} />
         </div>
         <div className="auth__hero-content">
           <p className="auth__tagline">Små steg. Stora mål.</p>

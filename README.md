@@ -418,7 +418,28 @@ and audit-log pseudonymisation.
 
 ---
 
-## 11. Deployment
+## 11. The mascot
+
+The Sparly dog — a scruffy salt-and-pepper wirehaired dog with shaggy eyebrows, a beard, a big
+black nose and a navy collar with a gold coin tag — is drawn from a photo of the real dog. It is
+pre-rendered at the sizes the UI actually needs (`web/public/mascot/`), so a 64 px avatar never
+downloads the 640 px artwork:
+
+| File | Used for |
+| --- | --- |
+| `hund.png` (640 px) + `-128`, `-256`, `-320` | `<Mascot variant="full" />`, `srcSet`-driven |
+| `hund-ansikte.png` | `<Mascot variant="face" />` — portraits in empty states and the 404 page |
+| `hund-ikon-192/512`, `hund-ikon-maskable-512`, `hund-ikon-180` | web app manifest + `apple-touch-icon` (add to home screen) |
+
+`web/src/components/Mascot.tsx` is the only place that knows the file names. It appears on the
+login/registration screen (hero, bottom right on desktop, above the copy on mobile), as a small
+companion in the desktop sidebar, in the empty states for goals/transactions, and on the 404 page.
+The artwork is decorative (`aria-hidden`) everywhere except the 404 page, so screen readers are not
+narrated a picture on every page.
+
+The source render lives in `assets/mascot/hund-master.png` (not shipped to the browser).
+
+## 12. Deployment
 
 ### Vercel (the public deployment)
 

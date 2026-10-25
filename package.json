@@ -26,7 +26,6 @@
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",
     "@supabase/supabase-js": "^2.118.0",
-    "better-sqlite3": "^13.0.3",
     "express": "^5.1.0",
     "jose": "^6.2.13",
     "nodemailer": "^10.2.1",
@@ -35,7 +34,6 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.11",
-    "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.3",
     "@types/node": "^22.18.9",
     "@types/nodemailer": "^8.0.2",

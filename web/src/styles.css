@@ -1631,6 +1631,95 @@ ol {
   }
 }
 
+/* -------------------------------- maskot -------------------------------- */
+
+.mascot {
+  display: block;
+  height: auto;
+  max-width: 100%;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/*
+ * Logga in / skapa konto: hunden sitter i hörnet av fjordscenen. På mobil ligger den i flödet
+ * ovanför rubriken (högerställd, liten), på desktop sitter den stort i nedre högra hörnet.
+ */
+.auth__mascot {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px -6px 0 0;
+  pointer-events: none;
+}
+
+.auth__mascot .mascot {
+  height: 108px;
+  width: auto;
+  filter: drop-shadow(0 12px 24px rgba(4, 24, 20, 0.45));
+}
+
+/* Sidopanelen (desktop): hunden som liten följeslagare ovanför nivåkortet. */
+.sidebar__mascot {
+  display: none;
+}
+
+/* Tomma lägen: hunden i stället för den generiska illustrationen. */
+.empty-state__mascot {
+  height: 118px;
+  width: auto;
+  margin-bottom: 2px;
+}
+
+.notfound__mascot {
+  height: 160px;
+  width: auto;
+  margin-bottom: 6px;
+}
+
+@media (min-width: 900px) {
+  .auth__mascot {
+    position: absolute;
+    right: 46px;
+    bottom: 34px;
+    margin: 0;
+  }
+
+  .auth__mascot .mascot {
+    height: 300px;
+    filter: drop-shadow(0 22px 44px rgba(4, 24, 20, 0.5));
+  }
+
+  .sidebar__mascot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin: 4px 8px 14px;
+    padding: 10px 10px 8px;
+    border-radius: var(--radius);
+    background: rgba(214, 245, 231, 0.06);
+    border: 1px solid rgba(214, 245, 231, 0.1);
+    text-align: center;
+  }
+
+  .sidebar__mascot .mascot {
+    height: 92px;
+    width: auto;
+  }
+
+  .sidebar__mascot-line {
+    font-size: 0.7rem;
+    line-height: 1.35;
+    color: rgba(233, 242, 237, 0.62);
+  }
+
+  .empty-state__mascot {
+    height: 136px;
+  }
+}
+
 /* --------------------------- reduced motion ----------------------------- */
 
 @media (prefers-reduced-motion: reduce) {

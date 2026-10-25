@@ -8,12 +8,12 @@
     "api/[...path].js": {
       "maxDuration": 30,
       "memory": 1024,
-      "excludeFiles": "{node_modules/@electric-sql/**/*,node_modules/better-sqlite3/**/*,node_modules/@node-rs/**/*,data/**/*,web/src/**/*}"
+      "excludeFiles": "{node_modules/@electric-sql/**/*,node_modules/@node-rs/**/*,data/**/*,web/src/**/*}"
     },
     "api/index.js": {
       "maxDuration": 30,
       "memory": 1024,
-      "excludeFiles": "{node_modules/@electric-sql/**/*,node_modules/better-sqlite3/**/*,node_modules/@node-rs/**/*,data/**/*,web/src/**/*}"
+      "excludeFiles": "{node_modules/@electric-sql/**/*,node_modules/@node-rs/**/*,data/**/*,web/src/**/*}"
     }
   },
   "rewrites": [
