@@ -16,15 +16,32 @@ const SWEEP_INTERVAL_MS = 60_000;
 let ready = null;
 let db = null;
 let lastSweepAt = 0;
+let stage = 'database';
 
 async function boot() {
+  stage = 'database';
   db = await createDatabase();
+  stage = 'migrate';
   await migrate(db);
+  stage = 'competitions';
   await ensurePublicCompetitions(db);
   await syncCompetitionLifecycle(db);
+  stage = 'app';
   lastSweepAt = Date.now();
+  const app = createApp(db);
+  stage = 'ready';
   console.log('[sparly] serverless instance ready');
-  return createApp(db);
+  return app;
+}
+
+/** First frames of a stack trace, without absolute paths, for cold-start diagnostics. */
+function trace(error) {
+  const stack = error && error.stack ? String(error.stack) : '';
+  return stack
+    .split('\n')
+    .slice(0, 6)
+    .map((line) => line.trim().replace(/\/var\/task\//g, ''))
+    .join(' <- ');
 }
 
 function app() {
@@ -51,6 +68,8 @@ export default async function handler(req, res) {
         error: 'Databasen är inte tillgänglig just nu.',
         detail: String(error && error.message ? error.message : error),
         databaseHost: databaseHost() ?? undefined,
+        stage,
+        trace: trace(error),
       }),
     );
     return;
