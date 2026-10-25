@@ -129,6 +129,7 @@ See `.env.example`. The important ones:
 | `PORT` / `HOST` | `3000` / `0.0.0.0` | Bind all interfaces so previews/proxies work |
 | `DATABASE_FILE` | `./data/sparly.db` | Put on a durable volume |
 | `COOKIE_SECURE` | auto (`1` in production) | Must be `1` behind HTTPS; `0` only for local HTTP |
+| `COOKIE_SAMESITE` | `Lax` | `Lax`/`Strict` for normal sites; `None` (with `COOKIE_SECURE=1`) when the app is embedded in a cross-site iframe, e.g. a sandbox preview panel |
 | `SESSION_TTL_HOURS` | `336` | Server-side expiry, validated per request |
 | `ALLOWED_ORIGINS` | – | Extra origins allowed to call the API |
 | `SMTP_URL`, `MAIL_FROM`, `APP_URL` | – | Password-reset delivery; without SMTP the link is logged (never returned in production) |
@@ -390,6 +391,12 @@ serves both the API and the built SPA.
 4. Persist `DATABASE_FILE` (or `/data`) on a block volume; back up the SQLite file and its `-wal`
    with `sqlite3 sparly.db ".backup 'backup.db'"` on a schedule.
 5. Optionally set `SMTP_URL`/`MAIL_FROM`/`APP_URL` so password resets are delivered.
+
+**Embedded / iframe hosts.** Browsers treat a page in a third-party iframe as cross-site, so the
+session cookie must be `SameSite=None; Secure` there. Set `COOKIE_SAMESITE=None` **only** for such a
+preview deployment; a normal top-level site should keep the default `Lax`. The API additionally
+accepts the `x-forwarded-host` header when validating request origins, which is what makes
+same-origin writes work behind a TLS proxy or preview router.
 
 **Scaling note:** SQLite is a single-writer database. This build is designed for one application
 server (which is enough for a friends-and-family product). The whole data layer is isolated in
