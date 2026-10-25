@@ -34,7 +34,23 @@ async function boot() {
   return app;
 }
 
+/**
+ * `vercel.json` rewrites every `/api/*` request to this function and passes the original path in a
+ * `path` query parameter. Restore the real URL before Express sees it, so routing and the CSRF
+ * origin check behave exactly as they do on a long-lived server.
+ */
+function restorePath(req) {
+  const url = req.url ?? '/';
+  if (!url.startsWith('/api/%5B...path%5D.js') && !url.startsWith('/api/[...path].js')) return;
+  const parsed = new URL(url, 'http://localhost');
+  const rest = parsed.searchParams.get('path') ?? '';
+  parsed.searchParams.delete('path');
+  const query = parsed.searchParams.toString();
+  req.url = `/api${rest ? `/${rest}` : ''}${query ? `?${query}` : ''}`;
+}
+
 export default async function handler(req, res) {
+  restorePath(req);
   let express;
   try {
     express = await app();
