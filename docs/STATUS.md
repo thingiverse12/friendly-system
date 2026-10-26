@@ -59,6 +59,10 @@ anklagelse och få en sammanhängande lösning – med fungerande multiplayer.
 - **E-postflöden** för integritetsbegäranden är manuella (`privacy_requests`).
 - **Webbläsartester:** automatiserade UI-tester (Playwright etc.) finns inte;
   manuell kontroll rekommenderas för tillgänglighet på fysiska enheter.
+- **Vercel-drift:** klient och API körs serverless; `/tmp`-databasen är
+  inte beständig mellan kalla starter (omseedning sker automatiskt) och
+  WebSocket-realtid ersätts av polling. Skarp fleranvändardrift kräver en
+  nätverksdatabas bakom `db.js` (Turso/Postgres) och en WS-tjänst.
 
 ## Verifierade säkerhetspåståenden (i test)
 

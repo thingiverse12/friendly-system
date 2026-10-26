@@ -4,7 +4,10 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const ROOT_DIR = path.resolve(__dirname, '../..');
-export const DATA_DIR = process.env.DATA_DIR || path.join(ROOT_DIR, 'data');
+// Vercels filsystem är bara skrivbart och beständigt (inom en varm instans) under /tmp.
+const isServerless = !!process.env.VERCEL;
+export const DATA_DIR = process.env.DATA_DIR ||
+  (isServerless ? '/tmp/mordgatan-data' : path.join(ROOT_DIR, 'data'));
 export const DB_PATH = process.env.DB_PATH || path.join(DATA_DIR, 'mordgatan.sqlite');
 export const DIST_DIR = path.join(ROOT_DIR, 'dist');
 

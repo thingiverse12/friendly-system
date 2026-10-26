@@ -45,6 +45,28 @@ npm start        # Express serverar API, WS och den statiska klienten
 
 Hälsokontroll: `GET /api/health`.
 
+## Vercel (serverless)
+
+Projektet är förberett för Vercel via [`vercel.json`](../vercel.json) och
+funktionen [`api/index.js`](../api/index.js):
+
+- Bygge: `npm run build` (Vite → `dist/`), statiskt värdskap för klienten.
+- Allt under `/api/*` går till en Express-serverless-funktion.
+- `node:sqlite` kräver Node-flaggan `--experimental-sqlite` – läggs på som
+  miljövariabeln `NODE_OPTIONS=--experimental-sqlite` i projektet.
+- Databasen läggs i `/tmp` (`DATA_DIR=/tmp/mordgatan-data`), eftersom
+  serverless-funktioner saknar beständigt filsystem.
+
+> **Viktig begränsning:** `/tmp` är inte beständigt mellan kalla starter och
+> inte delat mellan funktionsinstanser. Vid en kallstart återskapas schema,
+> officiella fall och demokontot automatiskt (idempotent frösådd), men
+> registreringar och spelarrom som skapats i en annan instans kan saknas.
+> Det duger för demo och provspel. För skarp drift med konton och sparade
+> utredningar, byt datalagret i `server/src/db.js` mot en nätverksdatabas
+> (t.ex. Turso/libSQL eller Postgres) – all SQL är samlad i det lagret.
+> WebSocket-stöd finns inte i serverless; klienten går automatiskt över till
+> 20-sekunders polling och spelet förblir spelbart (realtidsnärvaro uteblir).
+
 ### Rekommenderad härdning
 
 - Kör bakom TLS-avlastande reverse proxy (nginx/Caddy/Load Balancer).
