@@ -47,6 +47,15 @@ Hälsokontroll: `GET /api/health`.
 
 ## Vercel (serverless)
 
+Publik demo: **<https://mordgatan.vercel.app>** (Vercel-projekt `mordgatan`,
+region iad1, Node 24.x). Distribution sker automatiskt vid push till
+repositoryts anslutna Git-gren. Projektet är kopplat till
+`thingiverse12/friendly-system` och använder:
+
+- Miljövariabler (Production/Preview/Development):
+  `NODE_OPTIONS=--experimental-sqlite`, `DATA_DIR=/tmp/mordgatan-data`.
+- Byggkommando `npm run build`, output-katalog `dist`.
+
 Projektet är förberett för Vercel via [`vercel.json`](../vercel.json) och
 funktionen [`api/index.js`](../api/index.js):
 

@@ -7,6 +7,19 @@ eller en grupp vänner samlar bevis, förhör misstänkta, analyserar tidslinjer
 kopplar samband på en interaktiv bevisbräda och lämnar en slutlig anklagelse –
 allt mot en versionslåst, hemlig fallmodell som aldrig läcker till klienten.
 
+## Live-demo
+
+Spelet körs publikt på Vercel: **<https://mordgatan.vercel.app>**
+(demokonto `demo / demopass123`, skapas automatiskt vid kallstart).
+
+Serverless-demo använder en databas i `/tmp` som nollställs när en funktion
+får kallstart – officiella fall och demokontot återskapas automatiskt, men
+konton och rum som skapats under en session kan försvinna. WebSocket är inte
+tillgänglig serverless; klienten faller automatiskt tillbaka till polling
+(20 s). För beständig multi-användardrift, se
+[`docs/DRIFTSATTNING.md`](./docs/DRIFTSATTNING.md) (byt `server/src/db.js`
+mot t.ex. Turso/Postgres).
+
 ## Funktioner i korthet
 
 - **Komplett spelcykel**: snabbstart → utredningspanel → bevis → förhör → bevisbräda → anklagelse → fullständig lösning.
@@ -27,7 +40,7 @@ allt mot en versionslåst, hemlig fallmodell som aldrig läcker till klienten.
 | Realtid | WebSocket (`ws`) – närvaro och händelsesignaler |
 | Autentisering | scrypt + slumpade sessionstoken (httpOnly-cookie) |
 | AI | Pluggbar provider: lokal deterministisk motor eller OpenAI-kompatibel endpoint |
-| Tester | inbyggda testlöparen `node:test` (29 tester) + rökskript |
+| Tester | inbyggda testlöparen `node:test` (30 tester) + rökskript + serverless-kontroll |
 
 ## Komma igång
 
@@ -46,7 +59,8 @@ Demokonto (skapas automatiskt): **demo / demopass123**
 ## Testning
 
 ```bash
-npm test                 # 29 automatiska tester (validering, poäng, AI-motor, integration, säkerhet)
+npm test                 # 30 automatiska tester (validering, poäng, AI-motor, integration, säkerhet)
+node --experimental-sqlite scripts/serverless-check.mjs  # verifierar Vercel-funktionen lokalt
 node scripts/smoke.mjs   # manuell helflödes-rökning (kräver server på 8787)
 node scripts/smoke2.mjs  # byggare, multiplayer, community, WebSocket
 ```
