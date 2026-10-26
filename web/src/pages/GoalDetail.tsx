@@ -7,6 +7,7 @@ import { useToast } from '../toast';
 import { formatDateTime, formatSek } from '../format';
 import { GoalHero, MilestoneList } from '../components/Cards';
 import { GoalForm, MovementForm } from '../components/Forms';
+import { GoalCelebration, forgetCelebrated, hasCelebrated, isGoalComplete } from '../components/Celebration';
 import { Icon } from '../components/Icon';
 import {
   Banner,
@@ -33,6 +34,7 @@ export function GoalDetail() {
   const [archiving, setArchiving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [celebrating, setCelebrating] = useState(false);
 
   const goal = state.data?.goal;
   useDocumentTitle(goal?.name ?? 'Sparmål');
@@ -69,6 +71,7 @@ export function GoalDetail() {
     setBusy(true);
     try {
       await api.deleteGoal(goal.id);
+      forgetCelebrated(goal.id);
       push('Sparmålet är borttaget.');
       navigate('/mal', { replace: true });
     } catch (error) {
@@ -268,13 +271,31 @@ export function GoalDetail() {
         </div>
       </div>
 
+      {goal && isGoalComplete(goal) && !hasCelebrated(goal.id) && !celebrating ? (
+        <section className="celebrate-prompt" aria-label="Målet är fullsparat">
+          <div className="celebrate-prompt__text">
+            <strong>Målet är fullsparat – det väntar en present.</strong>
+            <span>Sparly-hunden har något till dig.</span>
+          </div>
+          <Button icon="gift" onClick={() => setCelebrating(true)}>
+            Öppna presenten
+          </Button>
+        </section>
+      ) : null}
+
+      <GoalCelebration goal={goal ?? null} open={celebrating} onClose={() => setCelebrating(false)} onCelebrated={() => state.reload()} />
+
       <Modal open={movement !== null} onClose={() => setMovement(null)} title={movement === 'deposit' ? 'Sätt in pengar' : 'Ta ut pengar'}>
         {movement ? (
           <MovementForm
             goal={goal}
             initialType={movement}
             onCancel={() => setMovement(null)}
-            onDone={() => afterChange()}
+            onDone={(updated) => {
+              const justCompleted = goal ? !isGoalComplete(goal) && isGoalComplete(updated) : false;
+              afterChange();
+              if (justCompleted) setCelebrating(true);
+            }}
           />
         ) : null}
       </Modal>

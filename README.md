@@ -429,6 +429,7 @@ downloads the 640 px artwork:
 | --- | --- |
 | `hund.png` (640 px) + `-128`, `-256`, `-320` | `<Mascot variant="full" />`, `srcSet`-driven |
 | `hund-kropp.png` + `hund-svans.png` (same 992×1079 canvas) | `<Mascot variant="animated" />` — body and tail as separate layers |
+| `hund-present.png`, `hund-party.png` (+ `-320` versions) | the celebration poses (`pose="gift"` / `pose="party"`) |
 | `hund-ansikte.png` | `<Mascot variant="face" />` — portraits in empty states and the 404 page |
 | `hund-ikon-192/512`, `hund-ikon-maskable-512`, `hund-ikon-180` | web app manifest + `apple-touch-icon` (add to home screen) |
 
@@ -439,6 +440,15 @@ from those numbers). The tail rotates around the point where it meets the hip an
 body (z-index 1 vs 2), so the joint is always covered. The motion is one continuous CSS rotation
 (`transform: rotate(-11deg)` → `rotate(11deg)`, 1.15 s, `alternate` with an ease-in-out curve) —
 **not** a sequence of frames, which is what made the earlier version look choppy.
+
+**Celebrating a finished goal.** When a deposit takes a goal from below its target to at or above it,
+`GoalCelebration` (`web/src/components/Celebration.tsx`) opens in two steps: the dog arrives holding a
+wrapped present ("Öppna presenten"), and pressing that button swaps him to the party-hat drawing while
+64 CSS confetti pieces fall, spin and drift. A fully saved goal that has not been celebrated yet shows
+a "Öppna presenten" card on the goal page, so the moment can always be re-opened. Which goals have been
+celebrated is remembered in `localStorage` — that flag is cosmetic and never touches the money data;
+deleting the goal clears it. The dialog traps focus, closes on Escape, and the confetti is skipped
+entirely under reduced motion.
 
 With `prefers-reduced-motion: reduce` the animation is off and the tail rests six degrees up, so the
 dog still looks cheerful. `web/public/maskot-demo.html` shows the real animation at normal speed, at

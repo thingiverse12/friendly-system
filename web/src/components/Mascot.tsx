@@ -12,6 +12,9 @@
  */
 export type MascotVariant = 'full' | 'face' | 'animated';
 
+/** Extra props the dog can wear: a wrapped present, or a party hat once it has been opened. */
+export type MascotPose = 'plain' | 'gift' | 'party';
+
 const STILL = {
   full: {
     src: '/mascot/hund.png',
@@ -24,6 +27,25 @@ const STILL = {
     srcSet: '/mascot/hund-ansikte.png 480w',
     width: 480,
     height: 480,
+  },
+} as const;
+
+/**
+ * Celebration poses. These are complete drawings (tail included), so they are not layered – the dog
+ * simply holds still with the present / hat while the celebration animation plays around him.
+ */
+const POSES = {
+  gift: {
+    src: '/mascot/hund-present.png',
+    srcSet: '/mascot/hund-present-320.png 320w, /mascot/hund-present.png 640w',
+    width: 640,
+    height: 696,
+  },
+  party: {
+    src: '/mascot/hund-party.png',
+    srcSet: '/mascot/hund-party-320.png 320w, /mascot/hund-party.png 640w',
+    width: 640,
+    height: 696,
   },
 } as const;
 
@@ -45,12 +67,14 @@ const pct = (value: number): string => `${(value * 100).toFixed(3)}%`;
 export function Mascot({
   size = 140,
   variant = 'full',
+  pose = 'plain',
   className,
   decorative = true,
   title = 'Sparly-hunden',
 }: {
   size?: number;
   variant?: MascotVariant;
+  pose?: MascotPose;
   className?: string;
   /** Decorative artwork is hidden from screen readers; otherwise `title` is announced. */
   decorative?: boolean;
@@ -59,6 +83,25 @@ export function Mascot({
   const classes = ['mascot', `mascot--${variant}`, className].filter(Boolean).join(' ');
   const alt = decorative ? '' : title;
   const ariaHidden = decorative ? 'true' : undefined;
+
+  if (pose !== 'plain') {
+    const art = POSES[pose];
+    const height = Math.round((size * art.height) / art.width);
+    return (
+      <img
+        className={classes}
+        src={art.src}
+        srcSet={art.srcSet}
+        sizes={`${size}px`}
+        width={size}
+        height={height}
+        alt={alt}
+        aria-hidden={ariaHidden}
+        decoding="async"
+        draggable={false}
+      />
+    );
+  }
 
   if (variant === 'animated') {
     const height = Math.round((size * CANVAS.height) / CANVAS.width);

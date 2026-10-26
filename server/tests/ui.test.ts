@@ -96,6 +96,40 @@ describe('18. The application works on mobile and desktop (static + delivery che
     }
   });
 
+  it('celebrates a completed goal with a present, a party hat and confetti', () => {
+    const celebration = fs.readFileSync(path.join(root, 'web/src/components/Celebration.tsx'), 'utf8');
+
+    // Two steps: the dog arrives with a present, then it is opened.
+    expect(celebration).toContain("useState<'gift' | 'party'>('gift')");
+    expect(celebration).toContain('Öppna presenten');
+    expect(celebration).toContain("pose={step === 'party' ? 'party' : 'gift'}");
+    // Confetti is drawn in the DOM, with no new dependency.
+    expect(celebration).toContain('confetti__piece');
+    expect(celebration).toMatch(/const CONFETTI_COLORS/);
+    // The dialog is announced and keyboard-operable.
+    expect(celebration).toContain('role="dialog"');
+    expect(celebration).toContain('aria-modal="true"');
+    expect(celebration).toContain("event.key === 'Escape'");
+    // Reaching the goal must be a crossing, not "already complete".
+    expect(celebration).toContain('export function isGoalComplete');
+    expect(fs.readFileSync(path.join(root, 'web/src/pages/GoalDetail.tsx'), 'utf8')).toContain(
+      '!isGoalComplete(goal) && isGoalComplete(updated)',
+    );
+
+    // Both celebration drawings ship, and the pose prop resolves them.
+    const mascot = fs.readFileSync(path.join(root, 'web/src/components/Mascot.tsx'), 'utf8');
+    for (const file of ['hund-present.png', 'hund-present-320.png', 'hund-party.png', 'hund-party-320.png']) {
+      const buffer = fs.readFileSync(path.join(root, 'web/public/mascot', file));
+      expect(buffer.subarray(1, 4).toString(), file).toBe('PNG');
+      expect(mascot, file).toContain(`/mascot/${file}`);
+    }
+
+    const styles = fs.readFileSync(path.join(root, 'web/src/styles.css'), 'utf8');
+    expect(styles).toContain('@keyframes confetti-fall');
+    expect(styles).toContain('.celebrate__dog--party');
+    expect(styles).toMatch(/prefers-reduced-motion[\s\S]*\.confetti__piece\s*\{\s*animation:\s*none/);
+  });
+
   it('serves the built SPA for deep links so mobile browsers can reload any tab', async () => {
     const indexPath = path.join(root, 'web/dist/index.html');
     if (!fs.existsSync(indexPath)) {

@@ -30,9 +30,19 @@ export type IconName =
   | 'arrowDownLeft'
   | 'eye'
   | 'menu'
-  | 'link';
+  | 'link'
+  | 'gift';
 
 const paths: Record<IconName, ReactNode> = {
+  gift: (
+    <>
+      <path d="M4 11h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Z" />
+      <path d="M3 7.6h18v3.4H3z" />
+      <path d="M12 7.6V21" />
+      <path d="M12 7.6C11 4.6 9.6 3.4 8.2 3.9 6.6 4.4 6.8 7.6 12 7.6Z" />
+      <path d="M12 7.6c1-3 2.4-4.2 3.8-3.7 1.6.5 1.4 3.7-3.8 3.7Z" />
+    </>
+  ),
   home: <path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1v-9.5Z" />,
   target: (
     <>

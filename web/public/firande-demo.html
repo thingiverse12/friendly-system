@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="sv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Firande – förhandsvisning</title>
+<style>
+:root{--bg:#f4f5f1;--ink:#0d2027;--ink-soft:#4a5b5d;--navy:#0b2a24;--gold:#b8902f;--surface:#fff}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 ui-sans-serif,system-ui,-apple-system,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:28px 18px 70px}
+h1{font-size:1.5rem;letter-spacing:-.03em;margin:0 0 4px}p.lead{margin:0 0 24px;color:var(--ink-soft)}
+.stage{position:relative;border-radius:22px;overflow:hidden;min-height:520px;display:grid;place-items:center;padding:20px;
+  background:radial-gradient(520px 320px at 50% 12%,rgba(184,144,47,.22),transparent 70%),rgba(6,22,19,.82)}
+.card{position:relative;z-index:2;width:100%;max-width:430px;display:flex;flex-direction:column;align-items:center;gap:8px;
+  padding:22px;text-align:center;border-radius:24px;background:var(--surface);box-shadow:0 30px 70px rgba(3,18,15,.45);animation:ci .34s cubic-bezier(.22,.61,.36,1)}
+.card.party{background:linear-gradient(170deg,#fbfff9,#f2f8f3 60%,#eef7f1)}
+@keyframes ci{from{opacity:0;transform:translateY(22px) scale(.97)}to{opacity:1;transform:none}}
+.dog{width:min(232px,62vw);height:auto;filter:drop-shadow(0 16px 26px rgba(9,40,33,.18));animation:bob 2.4s ease-in-out infinite}
+.dog--party{animation:pop .55s cubic-bezier(.22,1.4,.4,1),bob 2.4s ease-in-out .55s infinite}
+@keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes pop{0%{opacity:0;transform:translateY(18px) scale(.86)}60%{opacity:1;transform:translateY(-14px) scale(1.05)}100%{opacity:1;transform:none}}
+.eyebrow{font-size:.7rem;font-weight:650;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin:0}
+.title{font-size:1.5rem;letter-spacing:-.03em;line-height:1.2;margin:0}
+.text{font-size:.9rem;color:var(--ink-soft);max-width:34ch;margin:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:12px 18px;border-radius:12px;border:0;
+  background:var(--navy);color:#eefaf4;font:inherit;font-weight:600;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink-soft);font-weight:500}
+.actions{display:flex;flex-direction:column;gap:8px;width:100%;margin-top:8px}
+.confetti{position:absolute;inset:0;z-index:1;overflow:hidden;pointer-events:none}
+.confetti span{position:absolute;top:-8%;border-radius:2px;opacity:0;animation-name:fall;animation-timing-function:linear;animation-iteration-count:2;animation-fill-mode:forwards}
+@keyframes fall{0%{opacity:0;transform:translate3d(0,-10vh,0) rotate(0)}8%{opacity:1}100%{opacity:0;transform:translate3d(var(--drift),108vh,0) rotate(var(--spin))}}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+.row button{padding:9px 16px;border-radius:999px;border:1px solid #cfd8d1;background:#fff;font:inherit;cursor:pointer}
+.row button.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+</style></head><body>
+<div class="wrap">
+  <h1>Firande när målet är nått</h1>
+  <p class="lead">Tryck på knapparna: först kommer hunden med presenten, sedan öppnar du den och konfettin faller medan han får partyhatt.</p>
+  <div class="row">
+    <button id="b1" class="active">1. Present</button>
+    <button id="b2">2. Öppnad + konfetti</button>
+  </div>
+  <div class="stage" id="stage">
+    <div class="confetti" id="confetti"></div>
+    <div class="card" id="card">
+      <img class="dog" id="dog" src="/mascot/hund-present.png" alt="">
+      <p class="eyebrow" id="eyebrow">Mål uppnått</p>
+      <h2 class="title" id="title">Du nådde ända fram!</h2>
+      <p class="text" id="text"><strong>Semester i Italien</strong> är fullsparat – 24 000 kr av 24 000 kr. Jag har något till dig.</p>
+      <div class="actions" id="actions">
+        <button class="btn" id="open">🎁 Öppna presenten</button>
+        <button class="btn ghost">Senare</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const colors=['#0f6b52','#b8902f','#7fd3b4','#e9d8a6','#0b2a24','#cfe6da'];
+const seed=(i,s)=>{const v=Math.sin(i*127.1+s*311.7)*43758.5453;return v-Math.floor(v)};
+const conf=document.getElementById('confetti');
+for(let i=0;i<64;i++){
+  const p=document.createElement('span');
+  const size=6+Math.round(seed(i,6)*7), round=seed(i,7)>.6;
+  p.style.left=(seed(i,1)*100)+'%';
+  p.style.width=size+'px'; p.style.height=(round?size:size*.45)+'px';
+  p.style.background=colors[i%colors.length];
+  if(round) p.style.borderRadius='50%';
+  p.style.animationDelay=(seed(i,2)*.9)+'s';
+  p.style.animationDuration=(2.4+seed(i,3)*2.2)+'s';
+  p.style.setProperty('--drift',((seed(i,4)-.5)*160)+'px');
+  p.style.setProperty('--spin',(seed(i,5)*360)+'deg');
+  conf.appendChild(p);
+}
+const dog=document.getElementById('dog'),card=document.getElementById('card'),eyebrow=document.getElementById('eyebrow'),
+      title=document.getElementById('title'),text=document.getElementById('text'),actions=document.getElementById('actions'),
+      b1=document.getElementById('b1'),b2=document.getElementById('b2');
+function gift(){
+  b1.classList.add('active');b2.classList.remove('active');
+  conf.style.display='none';
+  dog.src='/mascot/hund-present.png';dog.className='dog';
+  card.className='card';eyebrow.textContent='Mål uppnått';title.textContent='Du nådde ända fram!';
+  text.innerHTML='<strong>Semester i Italien</strong> är fullsparat – 24 000 kr av 24 000 kr. Jag har något till dig.';
+  actions.innerHTML='<button class="btn" id="open">🎁 Öppna presenten</button><button class="btn ghost">Senare</button>';
+  document.getElementById('open').onclick=party;
+}
+function party(){
+  b2.classList.add('active');b1.classList.remove('active');
+  conf.style.display='block';
+  dog.src='/mascot/hund-party.png';dog.className='dog dog--party';
+  card.className='card party';eyebrow.textContent='Grattis!';title.textContent='Målet är i hamn 🎉';
+  text.innerHTML='24 000 kr sparade till <strong>Semester i Italien</strong>. Varje litet steg räknas – det här var många.';
+  actions.innerHTML='<button class="btn">Fira klart</button>';
+  // restart the confetti animation
+  [...conf.children].forEach(el=>{el.style.animation='none';void el.offsetWidth;el.style.animation=''});
+  conf.style.display='block';
+}
+b1.onclick=gift;b2.onclick=party;
+document.getElementById('open').onclick=party;
+</script>
+</body></html>

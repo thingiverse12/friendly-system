@@ -19,6 +19,7 @@ import {
   Skeleton,
 } from '../components/UI';
 import { MovementForm, TransactionForm } from '../components/Forms';
+import { GoalCelebration, isGoalComplete } from '../components/Celebration';
 import type { DashboardData, Goal } from '../types';
 
 export function Dashboard() {
@@ -28,6 +29,7 @@ export function Dashboard() {
   const navigate = useNavigate();
   const [transactionType, setTransactionType] = useState<'income' | 'expense' | null>(null);
   const [savingGoal, setSavingGoal] = useState<Goal | null>(null);
+  const [celebrateGoal, setCelebrateGoal] = useState<Goal | null>(null);
   const [choosingGoal, setChoosingGoal] = useState(false);
 
   const state = useAsync<DashboardData>((signal) => api.dashboard(), []);
@@ -378,13 +380,17 @@ export function Dashboard() {
           <MovementForm
             goal={savingGoal}
             onCancel={() => setSavingGoal(null)}
-            onDone={() => {
+            onDone={(updated) => {
+              const justCompleted = savingGoal ? !isGoalComplete(savingGoal) && isGoalComplete(updated) : false;
               setSavingGoal(null);
               afterChange();
+              if (justCompleted) setCelebrateGoal(updated);
             }}
           />
         ) : null}
       </Modal>
+
+      <GoalCelebration goal={celebrateGoal} open={celebrateGoal !== null} onClose={() => setCelebrateGoal(null)} />
     </>
   );
 }
