@@ -105,6 +105,52 @@ export interface Transaction {
   createdAt: string;
 }
 
+export type RecurrenceInterval = 'weekly' | 'monthly' | 'quarterly' | 'yearly';
+
+/** A rule for money that comes back every week, month, quarter or year ("återkommande post"). */
+export interface RecurringRule {
+  id: string;
+  type: TransactionType;
+  amountOre: number;
+  category: string;
+  description: string | null;
+  interval: RecurrenceInterval;
+  startDate: string;
+  dayOfMonth: number | null;
+  weekday: number | null;
+  endMonth: string | null;
+  /** Null when the rule has run past its end month or is paused. */
+  nextOccurrence: string | null;
+  upcoming: string[];
+  active: boolean;
+  /** Normalised to one month, so a weekly and a yearly rule can be compared. */
+  monthlyOre: number;
+  timesBooked: number;
+  totalBookedOre: number;
+  lastBookedDate: string | null;
+  createdAt: string;
+}
+
+export interface RecurringSummary {
+  monthlyIncomeOre: number;
+  monthlyExpenseOre: number;
+  monthlyNetOre: number;
+  yearlyExpenseOre: number;
+  activeCount: number;
+  pausedCount: number;
+  bookedThisMonthOre: number;
+  bookedThisMonthCount: number;
+}
+
+export interface RecurringResponse {
+  rules: RecurringRule[];
+  summary: RecurringSummary;
+  /** Today's date in the user's timezone, `YYYY-MM-DD`. */
+  today: string;
+  /** How many transactions the catch-up created when this list was loaded. */
+  booked: number;
+}
+
 export interface AchievementCatalogItem extends Milestone {
   description: string;
   earnedCount: number;

@@ -12,6 +12,9 @@ import type {
   MeResponse,
   MovementResult,
   ProfileStats,
+  RecurrenceInterval,
+  RecurringResponse,
+  RecurringRule,
   Transaction,
   User,
 } from './types';
@@ -153,6 +156,35 @@ export const api = {
     }
     return request<TransactionListResponse>(`/transactions?${search.toString()}`);
   },
+  recurring: () => request<RecurringResponse>('/recurring'),
+  createRecurring: (body: {
+    type: 'income' | 'expense';
+    amountOre: number;
+    category: string;
+    description?: string;
+    interval: RecurrenceInterval;
+    startDate?: string;
+    dayOfMonth?: number;
+    weekday?: number;
+    endMonth?: string | null;
+  }) => request<{ rule: RecurringRule }>('/recurring', { method: 'POST', body }),
+  updateRecurring: (
+    id: string,
+    body: Partial<{
+      type: 'income' | 'expense';
+      amountOre: number;
+      category: string;
+      description: string | null;
+      interval: RecurrenceInterval;
+      startDate: string;
+      dayOfMonth: number;
+      weekday: number;
+      endMonth: string | null;
+      active: boolean;
+    }>,
+  ) => request<{ rule: RecurringRule }>(`/recurring/${id}`, { method: 'PATCH', body }),
+  deleteRecurring: (id: string) => request<{ ok: boolean }>(`/recurring/${id}`, { method: 'DELETE' }),
+
   createTransaction: (body: {
     type: 'income' | 'expense';
     amountOre: number;

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { useAsync, useDocumentTitle } from '../hooks';
 import { useAuth } from '../auth';
@@ -6,16 +6,18 @@ import { useToast } from '../toast';
 import { formatDate, formatSek } from '../format';
 import { Icon } from '../components/Icon';
 import { TransactionForm } from '../components/Forms';
+import { RecurringForm, RecurringRow } from '../components/Recurring';
 import {
   Button,
   ConfirmDialog,
   EmptyState,
   ErrorState,
   Modal,
+  SectionHeader,
   SelectField,
   Skeleton,
 } from '../components/UI';
-import type { Goal, Transaction } from '../types';
+import type { Goal, RecurringResponse, RecurringRule, Transaction } from '../types';
 
 const CATEGORIES = [
   'Lön',
@@ -55,6 +57,9 @@ export function Transactions() {
   const [editing, setEditing] = useState<Transaction | null>(null);
   const [deleting, setDeleting] = useState<Transaction | null>(null);
   const [busy, setBusy] = useState(false);
+  const [recurringOpen, setRecurringOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<RecurringRule | null>(null);
+  const [deletingRule, setDeletingRule] = useState<RecurringRule | null>(null);
 
   const range = useMemo(() => monthRange(month), [month]);
   const listState = useAsync<{ items: Transaction[]; total: number }>(
@@ -70,12 +75,15 @@ export function Transactions() {
     [type, category, range.from, range.to, limit],
   );
   const summaryState = useAsync(async () => api.transactionSummary(month), [month]);
+  const recurringState = useAsync<RecurringResponse>(async () => api.recurring(), []);
   const goalsState = useAsync<{ goals: Goal[]; totals: { savedOre: number; targetOre: number } }>(
     async () => api.goals(false),
     [],
   );
 
   const goals = goalsState.data?.goals ?? [];
+  const recurring = recurringState.data;
+  const rules = recurring?.rules ?? [];
   const items = listState.data?.items ?? [];
   const summary = summaryState.data;
   const grouped = useMemo(() => {
@@ -94,6 +102,53 @@ export function Transactions() {
     setEditing(null);
     listState.reload();
     summaryState.reload();
+  };
+
+  // The recurring call books whatever has come due; if it did, the list and the tiles are stale.
+  const bookedNow = recurring?.booked ?? 0;
+  useEffect(() => {
+    if (bookedNow > 0) {
+      listState.reload();
+      summaryState.reload();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bookedNow]);
+
+  const afterRuleChange = () => {
+    setRecurringOpen(false);
+    setEditingRule(null);
+    // Registering a rule can book the current month, so the whole page is refreshed.
+    recurringState.reload();
+    listState.reload();
+    summaryState.reload();
+  };
+
+  const toggleRule = async (rule: RecurringRule) => {
+    setBusy(true);
+    try {
+      await api.updateRecurring(rule.id, { active: !rule.active });
+      push(rule.active ? 'Posten är pausad. Historiken finns kvar.' : 'Posten är igång igen.');
+      recurringState.reload();
+    } catch (error) {
+      push((error as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const removeRule = async () => {
+    if (!deletingRule) return;
+    setBusy(true);
+    try {
+      await api.deleteRecurring(deletingRule.id);
+      push('Den återkommande posten är borttagen. Bokförda transaktioner ligger kvar.');
+      setDeletingRule(null);
+      recurringState.reload();
+    } catch (error) {
+      push((error as Error).message, 'error');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const removeTransaction = async () => {
@@ -141,6 +196,74 @@ export function Transactions() {
           </span>
         </div>
       </div>
+
+      <section className="card card--pad recurring" aria-labelledby="recurring-title">
+        <SectionHeader
+          id="recurring-title"
+          title="Återkommande poster"
+          subtitle="Hyra, abonnemang och lön som kommer tillbaka varje månad – bokförs automatiskt."
+          action={
+            <div className="recurring__totals">
+              <span className="recurring__totals-label">Per månad</span>
+              <span className="recurring__totals-value">{formatSek(recurring?.summary.monthlyExpenseOre ?? 0)}</span>
+            </div>
+          }
+        />
+
+        {recurringState.loading ? <Skeleton lines={2} /> : null}
+
+        {rules.length === 0 && !recurringState.loading ? (
+          <EmptyState
+            variant="receipt"
+            title="Inga återkommande poster än"
+            description="Lägg in det som kommer tillbaka varje månad – då fylls månadens summor på av sig själva."
+            action={
+              <Button icon="plus" onClick={() => setRecurringOpen(true)}>
+                Lägg till återkommande
+              </Button>
+            }
+          />
+        ) : null}
+
+        {rules.length > 0 ? (
+          <>
+            <div className="recurring__list">
+              {rules.map((rule) => (
+                <RecurringRow
+                  key={rule.id}
+                  rule={rule}
+                  busy={busy}
+                  onEdit={() => setEditingRule(rule)}
+                  onToggle={() => void toggleRule(rule)}
+                  onDelete={() => setDeletingRule(rule)}
+                />
+              ))}
+            </div>
+            <div className="recurring__foot">
+              <p className="recurring__note">
+                {recurring && recurring.summary.activeCount > 0
+                  ? `${recurring.summary.activeCount} igång` +
+                    (recurring.summary.monthlyIncomeOre > 0 ? ` · ${formatSek(recurring.summary.monthlyIncomeOre)} in per månad` : '') +
+                    ` · ${formatSek(recurring.summary.yearlyExpenseOre)} per år`
+                  : 'Alla poster är pausade just nu.'}
+              </p>
+              <Button variant="secondary" icon="plus" onClick={() => setRecurringOpen(true)}>
+                Ny återkommande
+              </Button>
+            </div>
+            {recurring?.booked ? (
+              <p className="recurring__booked" role="status">
+                {recurring.booked === 1
+                  ? '1 återkommande post bokfördes nu.'
+                  : `${recurring.booked} återkommande poster bokfördes nu.`}{' '}
+                {recurring.summary.bookedThisMonthCount > 0
+                  ? `Den här månaden: ${formatSek(recurring.summary.bookedThisMonthOre)}.`
+                  : ''}
+              </p>
+            ) : null}
+          </>
+        ) : null}
+      </section>
 
       <div className="filter-bar">
         <SelectField label="Typ" value={type} onChange={(event) => setType(event.target.value as '' | 'income' | 'expense')}>
@@ -275,6 +398,44 @@ export function Transactions() {
           onDone={() => afterChange()}
         />
       </Modal>
+
+      <Modal
+        open={recurringOpen}
+        onClose={() => setRecurringOpen(false)}
+        title="Ny återkommande post"
+        description="Välj hur ofta den ska bokföras. Första gången sker alltid framåt i tiden – historiken rörs inte."
+      >
+        <RecurringForm
+          defaultType="expense"
+          onCancel={() => setRecurringOpen(false)}
+          onDone={() => afterRuleChange()}
+        />
+      </Modal>
+
+      <Modal open={editingRule !== null} onClose={() => setEditingRule(null)} title="Redigera återkommande post">
+        {editingRule ? (
+          <RecurringForm
+            rule={editingRule}
+            onCancel={() => setEditingRule(null)}
+            onDone={() => afterRuleChange()}
+          />
+        ) : null}
+      </Modal>
+
+      <ConfirmDialog
+        open={deletingRule !== null}
+        title="Ta bort återkommande posten?"
+        message={
+          deletingRule
+            ? `${deletingRule.description?.trim() || deletingRule.category} slutar bokföras. Transaktioner som redan skapats ligger kvar.`
+            : ''
+        }
+        confirmLabel="Ta bort"
+        danger
+        loading={busy}
+        onConfirm={removeRule}
+        onCancel={() => setDeletingRule(null)}
+      />
 
       <Modal open={editing !== null} onClose={() => setEditing(null)} title="Redigera transaktion">
         {editing ? (

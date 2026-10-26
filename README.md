@@ -20,6 +20,7 @@ restrained gold for achievements), server-rendered truth.
 | Security | Supabase-verified tokens, server-side sessions, HttpOnly cookies, CSRF double-submit, same-origin checks, rate limits, audit log |
 | Savings goals | Create, edit, archive, delete, privacy flag, locked target during competitions |
 | Transactions | Income/expenses with categories, optional private description, filters, search by period, edit/delete |
+| Recurring entries | Weekly/monthly/quarterly/yearly income and expenses ("återkommande per månad"): pick the day, the app books each occurrence as a normal transaction, catches up missed months, pauses, ends |
 | Savings ledger | Append-only deposit/withdrawal ledger, exact integer öre, balances derived from movements |
 | Progress | Saved / target / remaining / percentage, milestone timeline |
 | Achievements | Five verified milestones, duplicate-proof awards, five levels, badge opt-in for leaderboards |
@@ -102,7 +103,7 @@ web/src
   pages/                 Auth, Dashboard, Goals, GoalDetail, Transactions, Competitions,
                          CompetitionDetail, GroupDetail, Achievements, Profile, NotFound
   styles.css, pages.css  design tokens, layout, components, responsive + reduced motion
-tests                    server/tests — 38 integration/unit tests (vitest + supertest)
+tests                    server/tests — 54 integration/unit tests (vitest + supertest)
 ```
 
 ---
@@ -138,7 +139,7 @@ Useful scripts:
 | `npm run dev:server` | API with `tsx watch` (port 3000) |
 | `npm run dev:web` | Vite dev server with `/api` proxy (port 5173) |
 | `npm run build` / `npm start` | Production build / run from compiled `dist/` |
-| `npm test` | Vitest suite (38 tests, PGlite, no network) |
+| `npm test` | Vitest suite (54 tests, PGlite, no network) |
 | `npm run typecheck` | Server + web type check |
 
 ### Configuration
@@ -168,7 +169,8 @@ Tables (all with primary keys, foreign keys, CHECK constraints and indexes):
 
 `users` · `profiles` · `sessions` · `audit_events` · `rate_limits` ·
 `savings_goals` · `transactions` · `savings_movements` · `achievements` · `user_achievements` ·
-`competitions` · `competition_participants` · `private_groups` · `group_members` · `invitation_codes`
+`competitions` · `competition_participants` · `private_groups` · `group_members` · `invitation_codes` ·
+`recurring_rules` · `recurring_bookings`
 
 Highlights:
 
@@ -191,6 +193,11 @@ Highlights:
   together with the matching ledger row.
 * `savings_goals`, `transactions` and `savings_movements` carry a `seq BIGINT IDENTITY` column so
   list order is deterministic even when two rows share a timestamp (the test clock can freeze).
+* `recurring_rules` stores the schedule only (type, amount, category, `interval`, `day_of_month` or
+  `weekday`, `end_month`, `next_occurrence`, `active`); `recurring_bookings` has
+  `UNIQUE (rule_id, occurrence_date)`, which is what makes catch-up idempotent. Deleting a rule
+  cascades to its bookings but **never** to the transactions it already produced — those are real
+  history and still count in the monthly summaries.
 
 Migrations are ordered SQL statements executed once inside a transaction and recorded in
 `schema_migrations`, so a fresh database is reproducible. The same module runs locally (PGlite) and
@@ -345,6 +352,7 @@ All endpoints are under `/api`; every mutating call needs `X-CSRF-Token` (the va
 | `GET/POST /goals` · `GET/PATCH/DELETE /goals/:id` · `POST /goals/:id/archive\|unarchive` | Goals |
 | `GET/POST /goals/:id/movements` | Savings ledger (deposit/withdrawal) |
 | `GET/POST /transactions` · `GET/PATCH/DELETE /transactions/:id` · `GET /transactions/summary` | Cash flow |
+| `GET/POST /recurring` · `GET/PATCH/DELETE /recurring/:id` | Recurring income/expenses; `GET` also books everything that has come due |
 | `GET /achievements` | Catalog, awards history, level ladder |
 | `GET /competitions` · `GET /competitions/:id` · `GET /competitions/:id/leaderboard` | Discovery, detail, allowed-only leaderboard |
 | `POST /competitions/:id/join` · `POST /competitions/:id/withdraw` | Participation |
@@ -357,6 +365,43 @@ Amounts are always integer **öre** in the API (`amountOre: 125050` = 1 250,50 k
 
 ---
 
+## 9b. Recurring income and expenses
+
+"Återkommande poster" are created from **Transaktioner → Återkommande poster** (the dashboard card
+shows the monthly total and links there). A rule is income or an expense plus a rhythm:
+
+* **Varje vecka** — pick the weekday.
+* **Varje månad / kvartal / år** — pick the day of the month; a day that does not exist in a month is
+  clamped to that month's last day (the 31st is booked on 30 April), never skipped.
+
+Rules are *schedules*, not balances. Each occurrence becomes an ordinary row in `transactions`, so the
+monthly summaries, category totals and the reports keep one single source of truth — and an expense
+still never moves money in the savings ledger.
+
+How the booking works:
+
+* **Booking happens when the app is opened.** `GET /api/recurring` books everything that has come due
+  for that user before it answers. No cron job and no worker are needed, and the serverless deployment
+  does not depend on a scheduler.
+* **Exactly once.** `recurring_bookings` has `UNIQUE (rule_id, occurrence_date)`, so repeated visits or
+  two racing requests can never book the same month twice.
+* **Catch-up with real dates.** If the user is away for four months, the next visit books all four
+  months, each with its own `occurred_at` — the monthly reports stay true.
+* **Creating a rule never rewrites history.** The first booking is always in the future; the form shows
+  the next date, and the UI states it explicitly.
+* **Pause and end.** `Slutar` (an optional end month) deactivates the rule after its last occurrence,
+  and pausing keeps every booked transaction. Resuming starts at the next future date instead of
+  flooding the ledger with the paused period.
+* **Editing** the amount, category or description keeps the pending date; changing the rhythm
+  recomputes it. Deleting a rule cancels the schedule only.
+* **Per-user isolation** is enforced in SQL (`owner_id = ?` on every statement); another user's rule id
+  answers `404`, never `403`.
+
+The monthly figure in the UI is normalised so rhythms can be compared: a weekly rule counts as
+`amount × 52 / 12` per month, a quarterly one as `amount / 3`, a yearly one as `amount / 12`.
+
+---
+
 ## 10. Tests
 
 ```bash
@@ -365,8 +410,8 @@ npm test
 
 Environment: Node 22.22, vitest 5, supertest, **PGlite** (Postgres in WebAssembly) with a fresh
 database and the real SQL migrations per suite, Supabase Auth replaced by a test identity provider
-(`test:<uuid>:<email>` tokens, only available with `NODE_ENV=test`). Arc: 8 files,
-**38 tests, 38 passed, 0 failed, 0 skipped** (~70 s). Database, HTTP layer and authorisation are
+(`test:<uuid>:<email>` tokens, only available with `NODE_ENV=test`). Arc: 9 files,
+**54 tests, 54 passed, 0 failed, 0 skipped** (~110 s). Database, HTTP layer and authorisation are
 exercised end-to-end through the real Express app; time is frozen with the test-only clock.
 
 | # | Requirement | Where it is verified | Result |
@@ -388,7 +433,9 @@ exercised end-to-end through the real Express app; time is frozen with the test-
 | 15 | Invitation usage limits hold under concurrent requests | `groups.test.ts` → "enforces max uses…", "keeps the usage limit correct under concurrent requests from separate connections" | Passed |
 | 16 | Achievements cannot be granted repeatedly | `achievements.test.ts` → "awards each milestone once per goal and keeps the history", "grants the full ladder exactly once at 100 %" | Passed |
 | 17 | Account deletion follows the documented policy | `account.test.ts` → "requires password confirmation and deletes all personal and financial data", "removes the user from competition leaderboards" | Passed |
-| 18 | The application works on mobile and desktop | `ui.test.ts` → viewport/responsive/reduced-motion/6-destination checks, SPA deep-link delivery, API 404 + health | Passed (static + delivery checks; see below) |
+| 18 | Recurring entries book exactly once, on the right day | `recurring.test.ts` → "books a monthly expense on the right day, exactly once", "clamps the 31st to shorter months…" | Passed |
+| 19 | Missed months are caught up with their own dates, and end/pause is respected | `recurring.test.ts` → "catches up every missed month with its own date", "stops at the end month and can be paused…", "keeps rules private and validates the schedule" | Passed |
+| 20 | The application works on mobile and desktop | `ui.test.ts` → viewport/responsive/reduced-motion/6-destination checks, SPA deep-link delivery, API 404 + health | Passed (static + delivery checks; see below) |
 
 Additional security tests included in the suite: CSRF missing/wrong/foreign-origin rejection,
 session-exchange rate limiting (12 attempts → `429`, no user created), SQL-injection attempts leaving

@@ -20,7 +20,8 @@ import {
 } from '../components/UI';
 import { MovementForm, TransactionForm } from '../components/Forms';
 import { GoalCelebration, isGoalComplete } from '../components/Celebration';
-import type { DashboardData, Goal } from '../types';
+import { RecurringCard } from '../components/Recurring';
+import type { DashboardData, Goal, RecurringResponse } from '../types';
 
 export function Dashboard() {
   useDocumentTitle('Hem');
@@ -33,6 +34,7 @@ export function Dashboard() {
   const [choosingGoal, setChoosingGoal] = useState(false);
 
   const state = useAsync<DashboardData>((signal) => api.dashboard(), []);
+  const recurringState = useAsync<RecurringResponse>(async () => api.recurring(), []);
   const goalsState = useAsync<{ goals: Goal[]; totals: { savedOre: number; targetOre: number } }>(
     async () => api.goals(false),
     [],
@@ -300,6 +302,17 @@ export function Dashboard() {
                   <Icon name="chevronRight" size={18} />
                 </Link>
               </section>
+
+              <Link to="/transaktioner" className="card-link">
+                <RecurringCard
+                  activeCount={recurringState.data?.summary.activeCount ?? 0}
+                  monthlyExpenseOre={recurringState.data?.summary.monthlyExpenseOre ?? 0}
+                  monthlyIncomeOre={recurringState.data?.summary.monthlyIncomeOre ?? 0}
+                  nextDate={
+                    recurringState.data?.rules.find((rule) => rule.active && rule.nextOccurrence)?.nextOccurrence ?? null
+                  }
+                />
+              </Link>
 
               <section className="card card--pad stack" aria-labelledby="compete-title">
                 <SectionHeader id="compete-title" title="Spartävlingar" />

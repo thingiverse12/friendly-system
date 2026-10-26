@@ -10,6 +10,7 @@ import { authRoutes, profileRoutes } from './routes/auth.js';
 import { defaultAuthProvider, type AuthProvider } from './services/supabase.js';
 import { goalRoutes } from './routes/goals.js';
 import { transactionRoutes } from './routes/transactions.js';
+import { recurringRoutes } from './routes/recurring.js';
 import { achievementRoutes, dashboardRoutes } from './routes/achievements.js';
 import { competitionRoutes } from './routes/competitions.js';
 import { groupRoutes } from './routes/groups.js';
@@ -141,6 +142,7 @@ export function createApp(db: Db, auth: AuthProvider = defaultAuthProvider()) {
   app.use('/api/dashboard', dashboardRoutes(db));
   app.use('/api/goals', goalRoutes(db));
   app.use('/api/transactions', transactionRoutes(db));
+  app.use('/api/recurring', recurringRoutes(db));
   app.use('/api/achievements', achievementRoutes(db));
   app.use('/api/competitions', competitionRoutes(db));
   app.use('/api/groups', groupRoutes(db));

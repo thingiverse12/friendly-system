@@ -31,9 +31,18 @@ export type IconName =
   | 'eye'
   | 'menu'
   | 'link'
-  | 'gift';
+  | 'gift'
+  | 'pause'
+  | 'play';
 
 const paths: Record<IconName, ReactNode> = {
+  pause: (
+    <>
+      <path d="M9 5v14" />
+      <path d="M15 5v14" />
+    </>
+  ),
+  play: <path d="M8 5.5 19 12 8 18.5v-13Z" />,
   gift: (
     <>
       <path d="M4 11h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-9Z" />

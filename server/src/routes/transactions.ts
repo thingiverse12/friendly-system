@@ -78,7 +78,8 @@ export function transactionRoutes(db: Db): Router {
     const date = new Date(reference);
     const from = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1)).toISOString();
     const to = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1)).toISOString();
-    res.json({ month: from.slice(0, 7), ...monthlySummary(db, userId, from, to) });
+    // The summary is async: it must be awaited before it is spread, or every tile reads 0 kr.
+    res.json({ month: from.slice(0, 7), ...(await monthlySummary(db, userId, from, to)) });
   });
 
   router.get('/categories', async (req, res) => {

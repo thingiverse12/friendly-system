@@ -132,6 +132,31 @@ describe('18. The application works on mobile and desktop (static + delivery che
     expect(styles).toMatch(/prefers-reduced-motion[\s\S]*\.confetti__piece\s*\{\s*animation:\s*none/);
   });
 
+  it('lets the user record monthly costs that book themselves', () => {
+    const page = fs.readFileSync(path.join(root, 'web/src/pages/Transactions.tsx'), 'utf8');
+    const component = fs.readFileSync(path.join(root, 'web/src/components/Recurring.tsx'), 'utf8');
+    const dashboard = fs.readFileSync(path.join(root, 'web/src/pages/Dashboard.tsx'), 'utf8');
+
+    // The section exists on the transactions page and the compact card on the dashboard.
+    expect(page).toContain('Återkommande poster');
+    expect(page).toContain('<RecurringForm');
+    expect(page).toContain('api.recurring()');
+    expect(dashboard).toContain('<RecurringCard');
+
+    // Swedish copy for every rhythm, and the "per month" figure people budget with.
+    for (const label of ['Varje månad', 'Varje vecka', 'Varje kvartal', 'Varje år', 'Pausad', 'nästa ']) {
+      expect(component).toContain(label);
+    }
+    expect(component).toContain('/månad');
+
+    const css = fs.readFileSync(path.join(root, 'web/src/pages.css'), 'utf8');
+    expect(css).toContain('.recurring-row');
+    expect(css).toContain('.recurring__totals-value');
+
+    const app = fs.readFileSync(path.join(root, 'server/src/app.ts'), 'utf8');
+    expect(app).toContain("app.use('/api/recurring', recurringRoutes(db))");
+  });
+
   it('serves the built SPA for deep links so mobile browsers can reload any tab', async () => {
     const indexPath = path.join(root, 'web/dist/index.html');
     if (!fs.existsSync(indexPath)) {

@@ -1894,3 +1894,170 @@
     align-items: flex-start;
   }
 }
+
+/* --------------------------- återkommande poster -------------------------- */
+
+.recurring {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.recurring__totals {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+.recurring__totals-label {
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.recurring__totals-value {
+  font-size: 1.125rem;
+  font-weight: 660;
+  font-variant-numeric: tabular-nums;
+}
+
+.recurring__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.recurring__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.recurring__note {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.recurring__booked {
+  font-size: 0.75rem;
+  color: var(--emerald);
+  font-weight: 560;
+}
+
+.recurring-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.recurring-row.is-paused {
+  opacity: 0.62;
+}
+
+.recurring-row__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.recurring-row__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  font-size: 0.9rem;
+  font-weight: 560;
+}
+
+.recurring-row__meta {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+.recurring-row__amounts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  white-space: nowrap;
+}
+
+.recurring-row__monthly {
+  font-size: 0.68rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.recurring-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--bg-deep);
+  font-size: 0.8125rem;
+  color: var(--ink-soft);
+}
+
+.recurring-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.recurring-card__icon {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: rgba(15, 107, 82, 0.1);
+  color: var(--emerald);
+  flex: none;
+}
+
+.recurring-card__title {
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.recurring-card__amount {
+  font-size: 1.15rem;
+  font-weight: 660;
+  font-variant-numeric: tabular-nums;
+}
+
+.recurring-card__meta {
+  font-size: 0.75rem;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.card-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.card-link .recurring-card {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.card-link:hover .recurring-card {
+  border-color: rgba(15, 107, 82, 0.35);
+  box-shadow: 0 10px 24px rgba(9, 40, 33, 0.08);
+}

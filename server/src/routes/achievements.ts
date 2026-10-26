@@ -3,12 +3,16 @@ import type { Db } from '../db.js';
 import { currentUserId, requireAuth } from '../lib/http.js';
 import { achievementCatalog, levelFor } from '../services/achievements.js';
 import { dashboard } from '../services/dashboard.js';
+import { runDueRules, todayForUser } from '../services/recurring.js';
 
 export function dashboardRoutes(db: Db): Router {
   const router = Router();
   router.use(requireAuth);
   router.get('/', async (req, res) => {
     const userId = currentUserId(res);
+    // The overview opens the app for most people, so this is where recurring entries come due.
+    // Booking first keeps the tiles and the "per month" card telling the same story.
+    await runDueRules(db, userId, await todayForUser(db, userId));
     res.json(await dashboard(db, userId));
   });
   return router;

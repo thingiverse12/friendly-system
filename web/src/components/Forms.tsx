@@ -18,7 +18,7 @@ function amountError(raw: string): string | null {
   return null;
 }
 
-function useFormError() {
+export function useFormError() {
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const reset = () => {
