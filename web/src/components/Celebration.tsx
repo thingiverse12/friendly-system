@@ -158,8 +158,12 @@ export function GoalCelebration({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, step]);
 
+  /**
+   * The present stays unopened – and the celebration stays waiting on the goal page – until step two.
+   * "Senare" only postpones it; opening the present is what counts as celebrated.
+   */
   const close = () => {
-    if (goal) {
+    if (goal && step === 'party') {
       markCelebrated(goal.id);
       onCelebrated?.(goal.id);
     }

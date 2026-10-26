@@ -110,6 +110,8 @@ describe('18. The application works on mobile and desktop (static + delivery che
     expect(celebration).toContain('role="dialog"');
     expect(celebration).toContain('aria-modal="true"');
     expect(celebration).toContain("event.key === 'Escape'");
+    // "Senare" postpones the present instead of burning it.
+    expect(celebration).toContain("step === 'party'");
     // Reaching the goal must be a crossing, not "already complete".
     expect(celebration).toContain('export function isGoalComplete');
     expect(fs.readFileSync(path.join(root, 'web/src/pages/GoalDetail.tsx'), 'utf8')).toContain(

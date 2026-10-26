@@ -445,8 +445,9 @@ body (z-index 1 vs 2), so the joint is always covered. The motion is one continu
 `GoalCelebration` (`web/src/components/Celebration.tsx`) opens in two steps: the dog arrives holding a
 wrapped present ("Öppna presenten"), and pressing that button swaps him to the party-hat drawing while
 64 CSS confetti pieces fall, spin and drift. A fully saved goal that has not been celebrated yet shows
-a "Öppna presenten" card on the goal page, so the moment can always be re-opened. Which goals have been
-celebrated is remembered in `localStorage` — that flag is cosmetic and never touches the money data;
+a "Öppna presenten" card on the goal page, so the moment can always be re-opened. "Senare" only
+postpones it – the present counts as opened only after step two, so the card waits until then. Which
+goals have been celebrated is remembered in `localStorage` — that flag is cosmetic and never touches the money data;
 deleting the goal clears it. The dialog traps focus, closes on Escape, and the confetti is skipped
 entirely under reduced motion.
 
