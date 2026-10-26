@@ -1,0 +1,16 @@
+node_modules/
+dist/
+data/
+web/dist/
+*.log
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+!.env.example
+.DS_Store
+coverage/
+.vite/
+.secrets/
+assets/reference/

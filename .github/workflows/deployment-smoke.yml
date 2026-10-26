@@ -1,0 +1,33 @@
+name: Deployment smoke test
+
+# The coding sandbox has no outbound HTTPS, so this workflow is how the deployed app is verified:
+# it runs on GitHub's runners, which do have internet access.
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: Base URL of the deployed app
+        required: false
+        default: https://sparly-zeta.vercel.app
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Health check
+        run: |
+          echo "--- GET /api/health"
+          curl -sS -w "\nHTTP %{http_code}\n" "${{ inputs.base_url }}/api/health"
+
+      - name: Session exchange rejects a missing token
+        run: |
+          echo "--- POST /api/auth/session (no token, no CSRF)"
+          curl -sS -w "\nHTTP %{http_code}\n" -X POST "${{ inputs.base_url }}/api/auth/session" \
+            -H 'content-type: application/json' -d '{}'
+
+      - name: SPA is served for deep links
+        run: |
+          echo "--- GET /mal (SPA deep link)"
+          curl -sS -o /dev/null -w "HTTP %{http_code} type=%{content_type}\n" "${{ inputs.base_url }}/mal"
+          echo "--- GET / (title)"
+          curl -sS "${{ inputs.base_url }}/" | grep -o '<title>[^<]*</title>' || true

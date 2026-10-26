@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Sparly-hunden – svansviftning</title>
+    <style>
+      :root { --bg:#f4f5f1; --ink:#0d2027; --navy:#0b2a24; --gold:#b8902f; }
+      * { box-sizing:border-box; }
+      body { margin:0; background:var(--bg); color:var(--ink);
+             font:16px/1.55 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+      .wrap { max-width:1040px; margin:0 auto; padding:32px 20px 72px; }
+      h1 { font-size:1.6rem; letter-spacing:-.03em; margin:0 0 4px; }
+      p.lead { margin:0 0 28px; color:#4a5b5d; max-width:60ch; }
+      .grid { display:grid; gap:20px; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); }
+      .card { background:#fff; border:1px solid #e2e5dd; border-radius:18px; padding:18px; text-align:center; }
+      .card h2 { font-size:.75rem; text-transform:uppercase; letter-spacing:.12em; color:#6b7a76; margin:0 0 12px; }
+      .dark { background:linear-gradient(140deg,#0b2a24,#104036); border:0; color:#eafaf2; }
+      .dark h2 { color:rgba(214,245,231,.7); }
+      .note { font-size:.78rem; color:#6b7a76; margin:10px 0 0; }
+      .dark .note { color:rgba(233,242,237,.6); }
+
+      /* --- exactly what the app does --- */
+      .wag { position:relative; display:inline-block; }
+      .wag .body { position:relative; z-index:2; display:block; width:100%; height:auto; }
+      .wag .tail { position:absolute; z-index:1; height:auto;
+                   animation: wag 1.15s cubic-bezier(.45,0,.55,1) infinite alternate; }
+      @keyframes wag { from { transform:rotate(-11deg) } to { transform:rotate(11deg) } }
+      .slow .tail { animation-duration:3s; }
+      .still .tail { animation:none; transform:rotate(6deg); }
+      .sizes { display:flex; align-items:flex-end; gap:22px; justify-content:center; margin-top:6px; }
+      code { font-size:.85em; background:#eef1ec; padding:1px 5px; border-radius:5px; }
+      footer { margin-top:34px; font-size:.82rem; color:#6b7a76; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>Sparly-hunden</h1>
+      <p class="lead">Svansen är nu ett eget lager som roterar mjukt kring fästpunkten i höften och ligger
+      <em>bakom</em> kroppen. Det är en enda kontinuerlig rörelse – inga bildrutor som byts – så den hackar inte.
+      Mungipan dras snett uppåt åt sidan, som du bad om.</p>
+
+      <div class="grid">
+        <div class="card">
+          <h2>Som i appen (1,15 s)</h2>
+          <span class="wag" style="width:250px">
+            <img class="tail" src="/mascot/hund-svans.png" alt=""
+                 style="left:77.319%; top:27.989%; width:22.681%; transform-origin:6.667% 88.199%" />
+            <img class="body" src="/mascot/hund-kropp.png" alt="" />
+          </span>
+          <p class="note">Mjuk pendelrörelse, ±11°.</p>
+        </div>
+
+        <div class="card slow">
+          <h2>Långsam (3 s)</h2>
+          <span class="wag" style="width:250px">
+            <img class="tail" src="/mascot/hund-svans.png" alt=""
+                 style="left:77.319%; top:27.989%; width:22.681%; transform-origin:6.667% 88.199%" />
+            <img class="body" src="/mascot/hund-kropp.png" alt="" />
+          </span>
+          <p class="note">Samma rörelse, bara långsammare, så du ser att svansen sitter kvar i höften.</p>
+        </div>
+
+        <div class="card dark">
+          <h2>I inloggningens hero</h2>
+          <span class="wag" style="width:190px; filter:drop-shadow(0 16px 30px rgba(0,0,0,.45))">
+            <img class="tail" src="/mascot/hund-svans.png" alt=""
+                 style="left:77.319%; top:27.989%; width:22.681%; transform-origin:6.667% 88.199%" />
+            <img class="body" src="/mascot/hund-kropp.png" alt="" />
+          </span>
+          <p class="note">På mörk botten, med skugga.</p>
+        </div>
+
+        <div class="card still">
+          <h2>Minskad rörelse</h2>
+          <span class="wag" style="width:190px">
+            <img class="tail" src="/mascot/hund-svans.png" alt=""
+                 style="left:77.319%; top:27.989%; width:22.681%; transform-origin:6.667% 88.199%" />
+            <img class="body" src="/mascot/hund-kropp.png" alt="" />
+          </span>
+          <p class="note">Med ”minska rörelse” påslaget står svansen still – lite upplyft.</p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:20px">
+        <h2>Storlekar</h2>
+        <div class="sizes">
+          <span class="wag" style="width:200px">
+            <img class="tail" src="/mascot/hund-svans.png" alt="" style="left:77.319%; top:27.989%; width:22.681%; transform-origin:6.667% 88.199%" />
+            <img class="body" src="/mascot/hund-kropp.png" alt="" />
+          </span>
+          <span class="wag" style="width:120px">
+            <img class="tail" src="/mascot/hund-svans.png" alt="" style="left:77.319%; top:27.989%; width:22.681%; transform-origin:6.667% 88.199%" />
+            <img class="body" src="/mascot/hund-kropp.png" alt="" />
+          </span>
+          <span class="wag" style="width:76px">
+            <img class="tail" src="/mascot/hund-svans.png" alt="" style="left:77.319%; top:27.989%; width:22.681%; transform-origin:6.667% 88.199%" />
+            <img class="body" src="/mascot/hund-kropp.png" alt="" />
+          </span>
+        </div>
+        <p class="note">Fungerar även litet – 76 px i sidomenyn.</p>
+      </div>
+
+      <footer>Lagren är <code>hund-kropp.png</code> och <code>hund-svans.png</code>, båda ritade på samma
+      992 × 1079-canvas. Rotationen sköts av <code>.mascot__tail</code> i <code>styles.css</code>.</footer>
+    </div>
+  </body>
+</html>
