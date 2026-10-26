@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import type { AchievementCatalogItem, CompetitionSummary, Goal, Milestone } from '../types';
 import { daysLeft, formatScore, formatSek, timeLeft } from '../format';
 import { Icon } from './Icon';
+import { isGoalComplete } from './Celebration';
 import { Pill, ProgressBar, ProgressRing } from './UI';
 
 export function GoalCard({ goal, showLink = true }: { goal: Goal; showLink?: boolean }) {
@@ -27,7 +28,10 @@ export function GoalCard({ goal, showLink = true }: { goal: Goal; showLink?: boo
       <ProgressBar valueBps={goal.progressBps} />
       <div className="goal-card__foot">
         <span>{goal.archived ? 'Arkiverat' : `${formatSek(goal.remainingOre)} kvar`}</span>
-        {goal.activeCompetitionCount > 0 ? <Pill tone="emerald">Tävlar</Pill> : null}
+        <span className="goal-card__pills">
+          {isGoalComplete(goal) ? <Pill tone="gold">Målet är uppnått</Pill> : null}
+          {goal.activeCompetitionCount > 0 ? <Pill tone="emerald">Tävlar</Pill> : null}
+        </span>
       </div>
     </>
   );
@@ -60,6 +64,7 @@ export function GoalHero({ goal, timezone }: { goal: Goal; timezone: string }) {
         <h1 id="goal-hero-title" className="goal-hero__title">
           {goal.name}
         </h1>
+        {isGoalComplete(goal) ? <Pill tone="gold">Målet är uppnått</Pill> : null}
         <p className="goal-hero__amount">
           {formatSek(goal.balanceOre)} <span>av {formatSek(goal.targetAmountOre)}</span>
         </p>
