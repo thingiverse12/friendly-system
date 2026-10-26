@@ -1,0 +1,31 @@
+{
+  "name": "mordgatan",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Mordgåtan – AI-drivet, multiplayerbaserat mordgåtespel för webben",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:server": "node --watch server/src/main.js",
+    "dev:client": "vite",
+    "build": "vite build",
+    "start": "NODE_ENV=production node server/src/main.js",
+    "test": "node --test --experimental-sqlite tests/*.test.js",
+    "seed": "node --experimental-sqlite server/src/seed.cli.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "vite": "^5.4.11"
+  }
+}

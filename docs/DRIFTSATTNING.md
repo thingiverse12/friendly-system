@@ -1,0 +1,83 @@
+# Driftsättning
+
+## Krav
+
+- Node.js ≥ 22.5 (det inbyggda `node:sqlite` används – inga externa databaser).
+- Ingen tredjepartstjänst är obligatorisk. AI, bilder och berättarröst har
+  inbyggda, kostnadsfria alternativ.
+
+## Miljövariabler
+
+Se [`.env.example`](../.env.example). Sammanfattning:
+
+| Variabel | Standard | Beskrivning |
+| --- | --- | --- |
+| `PORT` | `8787` | Lyssningsport (bind alltid `0.0.0.0` i container) |
+| `DATA_DIR` | `./data` | Katalog för SQLite-filen (WAL) |
+| `DB_PATH` | `<DATA_DIR>/mordgatan.sqlite` | Databasfil |
+| `AI_PROVIDER` | `local` | `local` eller `openai-compatible` |
+| `AI_BASE_URL` | – | Bas-URL till chat completions-kompatibel tjänst |
+| `AI_MODEL` | – | Modellnamn |
+| `AI_API_KEY` | – | Nyckel (skickas som Bearer) |
+| `AI_HOUR_BUDGET` | `60` | Max AI-anrop per användare och timme |
+| `AI_ROOM_HOUR_BUDGET` | `200` | Max AI-anrop per rum och timme |
+
+## Lokal utveckling
+
+```bash
+npm install
+npm run dev      # startar API (8787) och Vite (5173) parallellt
+```
+
+Demokonto: `demo` / `demopass123`. Databasen och allt officiellt innehåll
+skapas automatiskt första starten (`server/src/seed.js`). Manuell omsådd:
+
+```bash
+npm run seed
+```
+
+## Produktion
+
+```bash
+npm run build    # bygger klienten till dist/
+npm start        # Express serverar API, WS och den statiska klienten
+```
+
+Hälsokontroll: `GET /api/health`.
+
+### Rekommenderad härdning
+
+- Kör bakom TLS-avlastande reverse proxy (nginx/Caddy/Load Balancer).
+- Montera `DATA_DIR` på beständig lagring och säkerhetskopiera
+  `mordgatan.sqlite` med WAL-filerna (eller använd SQLite online backup).
+- Ändra samtliga demouppgifter och ta bort demokontot i skarpa miljöer.
+- Sätt strikta CSP- och CORS-regler i proxyn (API:et är same-origin).
+- Rotera sessionshemligheter genom att rensa tabellen `auth_tokens`.
+
+## Externa tjänster (valfria)
+
+1. **OpenAI-kompatibel AI:** fyll i `AI_BASE_URL`, `AI_MODEL`, `AI_API_KEY`.
+   Om tjänsten är otillgänglig returneras validerade reservsvar från den lokala
+   motorn och spelet fortsätter att fungera.
+2. **E-post/utskick:** inte implementerat; integritetsbegäranden hamnar i
+   `privacy_requests` för manuell hantering.
+
+## Säkerhetsprinciper i drift
+
+- Hemliga facit finns bara i tabellerna `case_solution_secrets` och
+  `case_suspect_secrets`. Ge aldrig API:er eller dashboardar direkt läsrätt
+  till dessa tabeller.
+- Klienten kan inte rapportera egna poäng – samtliga poäng skapas i
+  `score_events` via serverlogik.
+- Publicering av användarfall kräver godkänd validering utan kritiska fel.
+- Logga aldrig förhörstexter, teorier eller facit till analyssystem. Den
+  inbyggda åtkomstloggen (`audit_logs`) noterar bara händelsetyp och mottagare.
+
+## Felsökning
+
+| Symtom | Åtgärd |
+| --- | --- |
+| `Unknown named parameter '0'` | Använd array-parameter i db-hjälparna (hanteras internt). |
+| Klient kan inte ansluta WS | Kontrollera att proxyn tillåter Upgrade/Connection-headrar för `/ws`. |
+| AI-svar uteblir | Kontrollera kvot i `usage_budgets`; systemet fallback:ar till lokala motorn. |
+| Tom databas | Radera `data/` och starta om, eller kör `npm run seed`. |

@@ -1,0 +1,65 @@
+:root {
+  /* Noir-palett enligt designriktning */
+  --bg: #0a0e13;
+  --bg-elevated: #0e141b;
+  --panel: #101720;
+  --card: #141c27;
+  --card-hover: #182230;
+  --border: #222d3b;
+  --border-strong: #2d3b4d;
+  --red: #c8102e;
+  --red-hover: #e01b3c;
+  --red-soft: rgba(200, 16, 46, 0.12);
+  --text: #e8edf3;
+  --text-muted: #94a2b2;
+  --text-faint: #647181;
+  --green: #3fbf6f;
+  --green-soft: rgba(63, 191, 111, 0.14);
+  --blue: #6aa9ff;
+  --blue-soft: rgba(106, 169, 255, 0.14);
+  --amber: #f5a623;
+  --amber-soft: rgba(245, 166, 35, 0.14);
+  --purple: #b07bd8;
+  --purple-soft: rgba(176, 123, 216, 0.16);
+  --radius: 12px;
+  --radius-sm: 8px;
+  --radius-lg: 18px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  --font: 'Inter', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --maxw: 1440px;
+  --sidebar-w: 264px;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(200, 16, 46, 0.07), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(106, 169, 255, 0.05), transparent 55%),
+    var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 { margin: 0 0 .4em; font-weight: 700; letter-spacing: -0.01em; }
+h1 { font-size: 1.55rem; }
+h2 { font-size: 1.2rem; }
+h3 { font-size: 1.02rem; }
+p { margin: 0 0 .8em; }
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+button { font-family: inherit; }
+input, textarea, select { font-family: inherit; }
+img { max-width: 100%; }
+::selection { background: rgba(200, 16, 46, .35); }
+
+:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; border-radius: 4px; }
+
+/* Tillgänglighet: minskad rörelse */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
