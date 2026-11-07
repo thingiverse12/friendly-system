@@ -1,6 +1,8 @@
+import { requireAdminPage } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 export default async function Xp({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  await requireAdminPage();
   const { q } = await searchParams;
   let qu = admin().from("xp_events").select("*, profiles!inner(alias)").order("created_at", { ascending: false }).limit(200);
   if (q) qu = qu.ilike("profiles.alias", `%${q}%`);

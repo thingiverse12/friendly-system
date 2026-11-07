@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { MaterialUpload } from "@/components/MaterialUpload";
-import { getSession } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
 import { getSubjects } from "@/lib/data";
 import { admin } from "@/lib/supabase/admin";
 import { activeProvider } from "@/lib/ai";
@@ -10,8 +10,8 @@ export const metadata = { title: "Eget material" };
 export const dynamic = "force-dynamic";
 
 export default async function Materials() {
-  const { profile } = await getSession();
-  const [subjects, { data: materials }] = await Promise.all([getSubjects(), admin().from("materials").select("id,title,status,subject_id,created_at").eq("user_id", profile!.id).order("created_at", { ascending: false })]);
+  const { profile } = await requireProfile();
+  const [subjects, { data: materials }] = await Promise.all([getSubjects(), admin().from("materials").select("id,title,status,subject_id,created_at").eq("user_id", profile.id).order("created_at", { ascending: false })]);
   const ai = activeProvider();
   return (
     <>

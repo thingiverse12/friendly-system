@@ -1,8 +1,10 @@
+import { requireAdminPage } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 import { AdminAction } from "@/components/AdminAction";
 import { QuestionEditor } from "@/components/QuestionEditor";
 export const dynamic = "force-dynamic";
 export default async function Questions({ searchParams }: { searchParams: Promise<{ subject?: string; source?: string; q?: string }> }) {
+  await requireAdminPage();
   const sp = await searchParams;
   const db = admin();
   const [{ data: subjects }, { data: chapters }] = await Promise.all([db.from("subjects").select("id,name,active").order("sort"), db.from("chapters").select("id,title,subject_id").order("sort")]);

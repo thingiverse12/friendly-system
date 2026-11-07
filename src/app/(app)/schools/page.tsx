@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { SchoolsClient } from "@/components/SchoolsClient";
-import { getSession } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 import { weekRange } from "@/lib/xp";
 
@@ -9,8 +9,8 @@ export const metadata = { title: "Skolor" };
 export const dynamic = "force-dynamic";
 
 export default async function Schools() {
-  const { profile } = await getSession();
-  const p = profile!;
+  const { profile } = await requireProfile();
+  const p = profile;
   const db = admin();
   if (!p.class_id) {
     return (

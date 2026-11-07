@@ -1,6 +1,6 @@
 import { TopBar } from "@/components/TopBar";
 import { VaultClient } from "@/components/VaultClient";
-import { getSession } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 import { levelForXp } from "@/lib/xp";
 
@@ -8,8 +8,8 @@ export const metadata = { title: "Treasure Vault" };
 export const dynamic = "force-dynamic";
 
 export default async function Vault() {
-  const { profile } = await getSession();
-  const p = profile!;
+  const { profile } = await requireProfile();
+  const p = profile;
   const [{ data: items }, { data: owned }] = await Promise.all([admin().from("cosmetics").select("*").order("kind").order("sort"), admin().from("user_cosmetics").select("cosmetic_id").eq("user_id", p.id)]);
   return (
     <>

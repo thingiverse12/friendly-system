@@ -1,7 +1,9 @@
+import { requireAdminPage } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 import { AdminAction } from "@/components/AdminAction";
 export const dynamic = "force-dynamic";
 export default async function Reports() {
+  await requireAdminPage();
   const { data } = await admin().from("reports").select("*, reporter:profiles(alias)").order("created_at", { ascending: false }).limit(100);
   return (
     <div className="card overflow-x-auto">

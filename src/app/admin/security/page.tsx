@@ -1,6 +1,8 @@
+import { requireAdminPage } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 export default async function Security({ searchParams }: { searchParams: Promise<{ sev?: string }> }) {
+  await requireAdminPage();
   const { sev } = await searchParams;
   let q = admin().from("security_events").select("*, profiles(alias)").not("kind", "like", "rl:%").order("created_at", { ascending: false }).limit(200);
   if (sev) q = q.eq("severity", sev);

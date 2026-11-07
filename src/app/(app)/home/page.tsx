@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getSession } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
 import { Header } from "@/components/TopBar";
 import { Avatar } from "@/components/Avatar";
 import { recommend } from "@/lib/engine";
@@ -19,8 +19,8 @@ const GAMES = [
 ];
 
 export default async function Home() {
-  const { profile } = await getSession();
-  const p = profile!;
+  const { profile } = await requireProfile();
+  const p = profile;
   const [rec, streak, days, daily, cont, match, plan, school, cls, subjects] = await Promise.all([
     recommend(p.id),
     getStreak(p.id),

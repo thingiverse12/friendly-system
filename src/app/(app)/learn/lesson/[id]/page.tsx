@@ -3,20 +3,20 @@ import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { Markdown } from "@/components/Markdown";
 import { LessonActions } from "@/components/LessonActions";
-import { getSession } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 export default async function LessonPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { profile } = await getSession();
+  const { profile } = await requireProfile();
   const db = admin();
   const { data: lesson } = await db.from("lessons").select("id,title,body,xp_reward,sort,chapter_id,chapters(id,title,subject_id,subjects(name,icon))").eq("id", id).maybeSingle();
   if (!lesson) notFound();
   const ch = lesson.chapters as unknown as { id: string; title: string; subject_id: string; subjects: { name: string; icon: string } };
   const [{ data: done }, { data: siblings }] = await Promise.all([
-    db.from("lesson_progress").select("lesson_id").eq("user_id", profile!.id).eq("lesson_id", id).maybeSingle(),
+    db.from("lesson_progress").select("lesson_id").eq("user_id", profile.id).eq("lesson_id", id).maybeSingle(),
     db.from("lessons").select("id,title,sort").eq("chapter_id", lesson.chapter_id).order("sort"),
   ]);
   const idx = (siblings ?? []).findIndex((s) => s.id === id);

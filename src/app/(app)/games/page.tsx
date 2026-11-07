@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
-import { getSession } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 import { MODE_LABEL } from "@/lib/xp";
 
@@ -19,9 +19,9 @@ const GAMES = [
 ];
 
 export default async function Games() {
-  const { profile } = await getSession();
-  const { data: active } = await admin().from("game_sessions").select("id,mode,answered:total,correct,created_at").eq("user_id", profile!.id).eq("status", "active").order("created_at", { ascending: false }).limit(3);
-  const { data: recent } = await admin().from("game_sessions").select("id,mode,correct,total,xp_awarded,status,created_at").eq("user_id", profile!.id).neq("status", "active").order("created_at", { ascending: false }).limit(5);
+  const { profile } = await requireProfile();
+  const { data: active } = await admin().from("game_sessions").select("id,mode,answered:total,correct,created_at").eq("user_id", profile.id).eq("status", "active").order("created_at", { ascending: false }).limit(3);
+  const { data: recent } = await admin().from("game_sessions").select("id,mode,correct,total,xp_awarded,status,created_at").eq("user_id", profile.id).neq("status", "active").order("created_at", { ascending: false }).limit(5);
   return (
     <>
       <TopBar title="Spel" />

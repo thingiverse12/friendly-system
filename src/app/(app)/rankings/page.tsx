@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
-import { getSession } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 import { getSubjects } from "@/lib/data";
 import { weekRange } from "@/lib/xp";
@@ -13,8 +13,8 @@ const TABS = [["classes", "Klasser"], ["schools", "Skolor"], ["subjects", "Ämne
 export default async function Rankings({ searchParams }: { searchParams: Promise<{ tab?: string; subject?: string }> }) {
   const sp = await searchParams;
   const tab = (TABS.find((t) => t[0] === sp.tab)?.[0] ?? "classes") as (typeof TABS)[number][0];
-  const { profile } = await getSession();
-  const p = profile!;
+  const { profile } = await requireProfile();
+  const p = profile;
   const db = admin();
   const { from, to } = weekRange();
   const subjects = await getSubjects();

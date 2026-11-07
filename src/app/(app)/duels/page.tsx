@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { DuelsClient } from "@/components/DuelsClient";
-import { getSession } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 import { getSubjects } from "@/lib/data";
 
@@ -9,8 +9,8 @@ export const metadata = { title: "Dueller" };
 export const dynamic = "force-dynamic";
 
 export default async function Duels() {
-  const { profile } = await getSession();
-  const p = profile!;
+  const { profile } = await requireProfile();
+  const p = profile;
   const db = admin();
   if (!p.class_id) {
     return (<><TopBar title="Dueller" back="/games" /><div className="page"><div className="card text-center py-8"><div className="text-4xl mb-2">⚔️</div><b>Dueller kräver en klass</b><p className="muted text-[13px] mt-1">Du kan bara utmana klasskompisar – inga främlingar.</p><Link href="/schools" className="btn-gold mt-4">Gå med i klass</Link></div></div></>);

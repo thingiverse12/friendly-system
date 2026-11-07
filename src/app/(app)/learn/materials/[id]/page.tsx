@@ -2,16 +2,16 @@ import { notFound } from "next/navigation";
 import { TopBar } from "@/components/TopBar";
 import { Markdown } from "@/components/Markdown";
 import { MaterialView } from "@/components/MaterialView";
-import { getSession } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 export default async function MaterialPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { profile } = await getSession();
+  const { profile } = await requireProfile();
   const db = admin();
-  const { data: m } = await db.from("materials").select("*").eq("id", id).eq("user_id", profile!.id).maybeSingle();
+  const { data: m } = await db.from("materials").select("*").eq("id", id).eq("user_id", profile.id).maybeSingle();
   if (!m) notFound();
   const { count } = await db.from("questions").select("id", { count: "exact", head: true }).eq("material_id", id);
   return (

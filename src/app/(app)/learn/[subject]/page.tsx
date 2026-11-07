@@ -1,20 +1,20 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { TopBar } from "@/components/TopBar";
-import { getSession } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 
 export const dynamic = "force-dynamic";
 
 export default async function SubjectPage({ params }: { params: Promise<{ subject: string }> }) {
   const { subject } = await params;
-  const { profile } = await getSession();
+  const { profile } = await requireProfile();
   const db = admin();
   const { data: subj } = await db.from("subjects").select("*").eq("id", subject).maybeSingle();
   if (!subj) notFound();
   const [{ data: chapters }, { data: done }, { data: qcount }] = await Promise.all([
     db.from("chapters").select("id,title,year,sort,lessons(id,title,sort,xp_reward)").eq("subject_id", subject).order("year").order("sort"),
-    db.from("lesson_progress").select("lesson_id").eq("user_id", profile!.id),
+    db.from("lesson_progress").select("lesson_id").eq("user_id", profile.id),
     db.from("questions").select("chapter_id,difficulty").eq("subject_id", subject).eq("active", true).is("owner_id", null),
   ]);
   const doneSet = new Set((done ?? []).map((d) => d.lesson_id));

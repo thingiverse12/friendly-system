@@ -1,6 +1,8 @@
+import { requireAdminPage } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 export const dynamic = "force-dynamic";
 export default async function AdminHome() {
+  await requireAdminPage();
   const db = admin();
   const count = async (t: string, f?: (q: ReturnType<ReturnType<typeof admin>["from"]>["select"] extends (...a: never[]) => infer R ? R : never) => unknown) => {
     let q = db.from(t).select("*", { count: "exact", head: true });

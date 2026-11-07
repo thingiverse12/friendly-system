@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { createClient } from "./supabase/server";
 import { admin } from "./supabase/admin";
@@ -28,6 +29,23 @@ export async function getSession() {
   if (!user) return { user: null, profile: null };
   const profile = await getProfile(user.id);
   return { user, profile };
+}
+
+/** For server pages: redirects to /login or /onboarding unless signed in with a profile.
+ *  Needed because Next renders layout and page in parallel, so a layout redirect alone
+ *  doesn't stop the page from executing. */
+export async function requireProfile() {
+  const { user, profile } = await getSession();
+  if (!user) redirect("/login");
+  if (!profile) redirect("/onboarding");
+  return { user, profile };
+}
+
+/** For admin pages: same as requireProfile, plus role check (defense in depth beside admin/layout). */
+export async function requireAdminPage() {
+  const r = await requireProfile();
+  if (r.profile.role !== "admin") redirect("/home");
+  return r;
 }
 
 /** For route handlers: throws HttpError(401/403) unless signed in with a profile. */

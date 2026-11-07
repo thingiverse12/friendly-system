@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
 import { Avatar } from "@/components/Avatar";
-import { getSession } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 import { getStreak } from "@/lib/data";
 import { levelProgress, MODE_LABEL, RANKS } from "@/lib/xp";
@@ -10,8 +10,8 @@ export const metadata = { title: "Profil" };
 export const dynamic = "force-dynamic";
 
 export default async function Profile() {
-  const { profile } = await getSession();
-  const p = profile!;
+  const { profile } = await requireProfile();
+  const p = profile;
   const db = admin();
   const [{ data: ach }, { data: mine }, { data: ks }, { data: sessions }, streak, { data: frame }, { count: lessonsDone }] = await Promise.all([
     db.from("achievements").select("*").order("sort"),

@@ -1,8 +1,10 @@
+import { requireAdminPage } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 import { AdminAction } from "@/components/AdminAction";
 import { levelForXp } from "@/lib/xp";
 export const dynamic = "force-dynamic";
 export default async function Users({ searchParams }: { searchParams: Promise<{ q?: string }> }) {
+  await requireAdminPage();
   const { q } = await searchParams;
   let qu = admin().from("profiles").select("id,alias,avatar,xp,coins,role,created_at,last_active_at,classes(label,schools(name))").order("last_active_at", { ascending: false }).limit(100);
   if (q) qu = qu.ilike("alias", `%${q}%`);

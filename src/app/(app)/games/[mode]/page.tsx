@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { TopBar } from "@/components/TopBar";
 import { GameSetup } from "@/components/GameSetup";
 import { getSubjects } from "@/lib/data";
-import { getSession } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
 import { recommend } from "@/lib/engine";
 import { MODE_LABEL } from "@/lib/xp";
 import type { GameMode } from "@/lib/types";
@@ -22,8 +22,8 @@ export default async function GameMode({ params, searchParams }: { params: Promi
   const sp = await searchParams;
   const info = INFO[mode];
   if (!info) notFound();
-  const { profile } = await getSession();
-  const [subjects, rec] = await Promise.all([getSubjects(), recommend(profile!.id)]);
+  const { profile } = await requireProfile();
+  const [subjects, rec] = await Promise.all([getSubjects(), recommend(profile.id)]);
   return (
     <>
       <TopBar title={MODE_LABEL[mode]} back="/games" />
@@ -35,7 +35,7 @@ export default async function GameMode({ params, searchParams }: { params: Promi
             {info.rules.map((r) => <li key={r} className="text-[12px] text-[#bfe6d3] flex gap-2"><span className="gold">♦</span>{r}</li>)}
           </ul>
         </div>
-        <GameSetup mode={mode as GameMode} pick={info.pick} subjects={subjects} rec={{ subjectId: rec.subjectId, difficulty: rec.difficulty, perSubject: rec.perSubject }} preset={{ subject: sp.subject, difficulty: sp.difficulty }} preferredFormat={profile!.settings.preferred_format} />
+        <GameSetup mode={mode as GameMode} pick={info.pick} subjects={subjects} rec={{ subjectId: rec.subjectId, difficulty: rec.difficulty, perSubject: rec.perSubject }} preset={{ subject: sp.subject, difficulty: sp.difficulty }} preferredFormat={profile.settings.preferred_format} />
       </div>
     </>
   );

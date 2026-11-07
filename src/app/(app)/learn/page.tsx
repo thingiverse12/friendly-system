@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
-import { getSession } from "@/lib/auth";
+import { requireProfile } from "@/lib/auth";
 import { getSubjects } from "@/lib/data";
 import { admin } from "@/lib/supabase/admin";
 import { recommend } from "@/lib/engine";
@@ -10,13 +10,13 @@ export const metadata = { title: "Lär" };
 export const dynamic = "force-dynamic";
 
 export default async function Learn() {
-  const { profile } = await getSession();
+  const { profile } = await requireProfile();
   const db = admin();
   const [subjects, rec, { data: lessons }, { data: done }, { data: materials }] = await Promise.all([
-    getSubjects(), recommend(profile!.id),
+    getSubjects(), recommend(profile.id),
     db.from("lessons").select("id,chapters(subject_id)"),
-    db.from("lesson_progress").select("lesson_id").eq("user_id", profile!.id),
-    db.from("materials").select("id,title,status,created_at").eq("user_id", profile!.id).order("created_at", { ascending: false }).limit(3),
+    db.from("lesson_progress").select("lesson_id").eq("user_id", profile.id),
+    db.from("materials").select("id,title,status,created_at").eq("user_id", profile.id).order("created_at", { ascending: false }).limit(3),
   ]);
   const doneSet = new Set((done ?? []).map((d) => d.lesson_id));
   const per = new Map<string, { total: number; done: number }>();

@@ -1,7 +1,9 @@
+import { requireAdminPage } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 import { AdminAction, AdminForm } from "@/components/AdminAction";
 export const dynamic = "force-dynamic";
 export default async function Schools() {
+  await requireAdminPage();
   const db = admin();
   const { data: schools } = await db.from("schools").select("id,name,city,verified,merged_into,created_at,classes(id,label,year,verified,join_code,profiles(count))").order("created_at", { ascending: false }).limit(200);
   return (
