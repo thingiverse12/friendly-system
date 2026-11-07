@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>KNOWPLAY – Designförslag</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0e0f12;color:#f4f4f5;font-family:Inter,system-ui,sans-serif;padding:28px 20px 60px}
+h1{font-size:26px;letter-spacing:-.02em}
+h1 span{color:#34d399}
+p.lead{color:#a1a1aa;margin-top:6px;font-size:14px;max-width:760px;line-height:1.5}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:24px;margin-top:28px}
+.opt{background:#15171c;border:1px solid rgba(255,255,255,.08);border-radius:20px;padding:18px;display:flex;flex-direction:column}
+.opt h2{font-size:18px;display:flex;align-items:center;gap:10px}
+.opt h2 b{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:14px;color:#0b0c0e}
+.opt p{font-size:13px;color:#a1a1aa;margin-top:6px;line-height:1.5}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.tags i{font-style:normal;font-size:11px;padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+.phone{margin:16px auto 0;width:360px;height:720px;border-radius:40px;border:8px solid #26282e;background:#000;overflow:hidden;position:relative;box-shadow:0 40px 80px -40px #000}
+.phone::before{content:"";position:absolute;top:10px;left:50%;transform:translateX(-50%);width:110px;height:26px;background:#000;border-radius:999px;z-index:2}
+.phone iframe{width:100%;height:100%;border:0;display:block}
+.open{margin-top:14px;align-self:center;font-size:13px;font-weight:600;color:#34d399;text-decoration:none}
+.sw{display:flex;gap:6px;margin-top:10px}
+.sw i{width:22px;height:22px;border-radius:6px;border:1px solid rgba(255,255,255,.15)}
+</style>
+</head>
+<body>
+<h1>KNOWPLAY – <span>tre designförslag</span></h1>
+<p class="lead">Alla tre följer specen (mörkt, smaragdgrönt, guld för belöningar, lila/blått för ämnen, casino-inspirerat utan spel om pengar). Skillnaden är tonläget. Scrolla i telefonerna – det är riktig HTML/CSS, inte bilder.</p>
+
+<div class="grid">
+  <div class="opt">
+    <h2><b style="background:#e6b84a">A</b>Casino Noir</h2>
+    <p>Lyxigt och mörkt. Grönt filtbord, guldfoliekanter, serif-rubriker (Cinzel) och spelkort-känsla. Mest "premium casino"-referens av de tre – tydligast för slots/blackjack/hjulet.</p>
+    <div class="sw"><i style="background:#070807"></i><i style="background:#0f3b2a"></i><i style="background:#19c37d"></i><i style="background:#e6b84a"></i><i style="background:#8b5cf6"></i></div>
+    <div class="tags"><i>Cinzel + Manrope</i><i>Guldramar</i><i>Filtgrönt</i><i>Elegant</i></div>
+    <div class="phone"><iframe src="a-casino-noir.html" title="Förslag A"></iframe></div>
+    <a class="open" href="a-casino-noir.html" target="_blank">Öppna i helskärm →</a>
+  </div>
+
+  <div class="opt">
+    <h2><b style="background:#00e58a">B</b>Neon Arcade</h2>
+    <p>Esport/arkad-energi. Neonglöd, HUD-paneler, snedskurna knappar, kraftig display-font (Rajdhani). Känns mest som ett riktigt mobilspel – högt tempo, tydlig för 13–18-åringar.</p>
+    <div class="sw"><i style="background:#0a0b0f"></i><i style="background:#141720"></i><i style="background:#00e58a"></i><i style="background:#ffc63d"></i><i style="background:#a855f7"></i></div>
+    <div class="tags"><i>Rajdhani + Space Grotesk</i><i>Neonglöd</i><i>HUD</i><i>Gaming</i></div>
+    <div class="phone"><iframe src="b-neon-arcade.html" title="Förslag B"></iframe></div>
+    <a class="open" href="b-neon-arcade.html" target="_blank">Öppna i helskärm →</a>
+  </div>
+
+  <div class="opt">
+    <h2><b style="background:#34d399">C</b>Glass Premium</h2>
+    <p>Lugnt och modernt, Apple-aktigt. Frostade glaspaneler, mjuka gradienter, ren typografi (Sora + Inter). Casinoreferensen finns i spelkorten men gränssnittet är nedtonat – passar även lärare/föräldrar.</p>
+    <div class="sw"><i style="background:#0b0c0e"></i><i style="background:#1f2937"></i><i style="background:#34d399"></i><i style="background:#f5c451"></i><i style="background:#a78bfa"></i></div>
+    <div class="tags"><i>Sora + Inter</i><i>Glassmorphism</i><i>Mjuka gradienter</i><i>Minimalistiskt</i></div>
+    <div class="phone"><iframe src="c-glass-premium.html" title="Förslag C"></iframe></div>
+    <a class="open" href="c-glass-premium.html" target="_blank">Öppna i helskärm →</a>
+  </div>
+</div>
+</body>
+</html>

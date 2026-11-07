@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KNOWPLAY – Förslag B: Neon Arcade</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0a0b0f;--bg2:#101219;--card:#141720;--card2:#1a1e2a;--line:rgba(255,255,255,.08);
+  --em:#00e58a;--em2:#00b36b;--gold:#ffc63d;--purple:#a855f7;--blue:#38bdf8;--pink:#f472b6;
+  --text:#f5f7fb;--muted:#8b93a7;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:"Space Grotesk",system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.app{max-width:430px;margin:0 auto;min-height:100vh;padding-bottom:100px;position:relative;background:
+  linear-gradient(rgba(0,229,138,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,138,.035) 1px,transparent 1px),
+  radial-gradient(700px 320px at 20% -5%,rgba(0,229,138,.18),transparent 60%),
+  radial-gradient(500px 300px at 110% 25%,rgba(168,85,247,.16),transparent 60%),var(--bg);
+  background-size:28px 28px,28px 28px,auto,auto,auto}
+.d{font-family:Rajdhani,sans-serif;text-transform:uppercase;letter-spacing:.06em}
+header{padding:18px 18px 6px;display:flex;align-items:center;justify-content:space-between}
+.brand{font-family:Rajdhani,sans-serif;font-weight:700;font-size:22px;letter-spacing:.12em;color:#fff;text-shadow:0 0 18px rgba(0,229,138,.8)}
+.brand em{font-style:normal;color:var(--em)}
+.brand small{display:block;font-family:"Space Grotesk";font-size:9px;letter-spacing:.28em;color:var(--muted);text-shadow:none;margin-top:-2px}
+.stats{display:flex;gap:8px}
+.st{font-family:Rajdhani;font-weight:700;font-size:15px;padding:5px 10px;border-radius:8px;background:var(--card);border:1px solid var(--line);display:flex;align-items:center;gap:6px;clip-path:polygon(8px 0,100% 0,100% calc(100% - 8px),calc(100% - 8px) 100%,0 100%,0 8px)}
+.st.g{color:var(--gold)}.st.e{color:var(--em)}
+.hud{margin:10px 18px 0;background:linear-gradient(135deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:16px;padding:14px;display:grid;grid-template-columns:auto 1fr auto;gap:14px;align-items:center;position:relative;overflow:hidden}
+.hud::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:linear-gradient(var(--em),var(--purple))}
+.av{width:60px;height:60px;border-radius:16px;background:linear-gradient(135deg,#1b2b3a,#0f1620);display:grid;place-items:center;font-size:28px;border:2px solid var(--em);box-shadow:0 0 18px rgba(0,229,138,.45),inset 0 0 12px rgba(0,229,138,.2)}
+.hud h1{font-family:Rajdhani;font-size:22px;letter-spacing:.04em;line-height:1}
+.hud p{font-size:12px;color:var(--muted);margin-top:3px}
+.hud .bar{margin-top:8px;height:10px;background:#0c0e14;border-radius:4px;overflow:hidden;border:1px solid var(--line)}
+.hud .bar b{display:block;height:100%;width:72%;background:linear-gradient(90deg,var(--em2),var(--em));box-shadow:0 0 14px var(--em);position:relative}
+.hud .bar b::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(-60deg,transparent 0 6px,rgba(255,255,255,.18) 6px 8px)}
+.hud .lv{text-align:center}
+.hud .lv b{display:block;font-family:Rajdhani;font-size:30px;line-height:1;color:var(--gold);text-shadow:0 0 14px rgba(255,198,61,.6)}
+.hud .lv span{font-size:9px;letter-spacing:.2em;color:var(--muted);font-weight:700}
+.play{margin:16px 18px 0;position:relative;border-radius:20px;padding:22px;overflow:hidden;background:linear-gradient(120deg,#063d2a,#0a1f1a 55%,#1a0f33);border:1px solid rgba(0,229,138,.4);box-shadow:0 0 0 1px rgba(0,229,138,.15),0 24px 50px -20px rgba(0,229,138,.5)}
+.play::after{content:"";position:absolute;right:-40px;top:-40px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(0,229,138,.35),transparent 65%)}
+.play .k{font-size:10px;letter-spacing:.3em;color:var(--em);font-weight:700}
+.play h2{font-family:Rajdhani;font-size:54px;line-height:.9;letter-spacing:.08em;margin-top:6px;color:#fff;text-shadow:0 0 24px rgba(0,229,138,.9),0 0 2px #fff}
+.play p{font-size:12px;color:#b9c3d6;margin-top:8px}
+.play .btn{position:relative;margin-top:16px;display:inline-flex;align-items:center;gap:10px;font-family:Rajdhani;font-weight:700;font-size:18px;letter-spacing:.14em;padding:12px 22px;color:#031a10;background:var(--em);clip-path:polygon(10px 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%,0 10px);box-shadow:0 0 24px rgba(0,229,138,.7)}
+.sec{margin:24px 18px 0}
+.sec h3{font-family:Rajdhani;font-size:16px;letter-spacing:.14em;text-transform:uppercase;display:flex;align-items:center;gap:10px;color:#fff}
+.sec h3::before{content:"";width:6px;height:16px;background:var(--em);box-shadow:0 0 10px var(--em)}
+.sec h3 a{margin-left:auto;font-family:"Space Grotesk";font-size:11px;letter-spacing:0;text-transform:none;color:var(--em);font-weight:600}
+.card{margin-top:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;position:relative;overflow:hidden}
+.streak{display:flex;align-items:center;gap:12px}
+.streak .f{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,#ff7a18,#ffc63d);display:grid;place-items:center;font-size:22px;box-shadow:0 0 18px rgba(255,122,24,.5)}
+.streak b{font-family:Rajdhani;font-size:20px;letter-spacing:.04em}
+.streak p{font-size:12px;color:var(--muted)}
+.days{margin-left:auto;display:flex;gap:4px}
+.days i{width:10px;height:18px;border-radius:3px;background:#1f2432;transform:skewX(-12deg)}
+.days i.on{background:var(--em);box-shadow:0 0 8px var(--em)}
+.daily{background:linear-gradient(135deg,#1e1038,#141720);border-color:rgba(168,85,247,.45)}
+.daily .t{font-size:10px;letter-spacing:.25em;font-weight:700;color:var(--purple)}
+.daily h4{font-family:Rajdhani;font-size:22px;letter-spacing:.03em;margin-top:4px}
+.daily p{font-size:12px;color:var(--muted);margin-top:4px}
+.daily .rw{display:flex;gap:8px;margin-top:12px}
+.pill{font-family:Rajdhani;font-weight:700;font-size:13px;letter-spacing:.06em;padding:4px 10px;border-radius:6px;background:rgba(255,255,255,.05);border:1px solid var(--line)}
+.pill.g{color:var(--gold);border-color:rgba(255,198,61,.5)}.pill.e{color:var(--em);border-color:rgba(0,229,138,.5)}
+.row{display:flex;gap:12px;overflow-x:auto;margin:12px -18px 0;padding:0 18px 8px;scrollbar-width:none}
+.row::-webkit-scrollbar{display:none}
+.g{flex:0 0 156px;height:196px;border-radius:16px;padding:14px;position:relative;overflow:hidden;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);box-shadow:0 0 0 1px var(--c,transparent) inset,0 14px 30px -16px var(--c)}
+.g::before{content:"";position:absolute;inset:0;background:radial-gradient(140px 120px at 100% 0%,var(--c),transparent 70%);opacity:.55}
+.g::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;background:var(--c);box-shadow:0 0 12px var(--c)}
+.g span{font-size:36px;position:relative;filter:drop-shadow(0 0 10px var(--c))}
+.g b{position:relative;margin-top:auto;font-family:Rajdhani;font-size:17px;line-height:1;letter-spacing:.05em;text-transform:uppercase}
+.g small{position:relative;font-size:11px;color:var(--muted);margin-top:4px}
+.g .lv{position:absolute;top:12px;right:12px;font-family:Rajdhani;font-weight:700;font-size:11px;letter-spacing:.1em;padding:2px 7px;border:1px solid var(--c);color:var(--c);border-radius:4px}
+.cont{display:flex;gap:12px;align-items:center}
+.cont .ic{width:46px;height:46px;border-radius:12px;display:grid;place-items:center;font-size:22px;background:linear-gradient(135deg,var(--blue),#1d4ed8);box-shadow:0 0 16px rgba(56,189,248,.4)}
+.cont b{font-size:14px;display:block}
+.cont p{font-size:12px;color:var(--muted)}
+.cont .pr{margin-left:auto;font-family:Rajdhani;font-size:22px;font-weight:700;color:var(--blue)}
+.comp{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;text-align:center}
+.comp b{font-family:Rajdhani;font-size:22px;display:block;line-height:1}
+.comp span{font-size:11px;color:var(--muted)}
+.comp .sc{font-family:Rajdhani;font-size:32px;font-weight:700;color:var(--em);text-shadow:0 0 14px rgba(0,229,138,.5)}
+.comp .vs{font-family:Rajdhani;font-weight:700;color:var(--pink);font-size:16px;letter-spacing:.1em;padding:6px 10px;border:1px solid rgba(244,114,182,.5);border-radius:6px;box-shadow:0 0 12px rgba(244,114,182,.3)}
+nav{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);width:calc(100% - 24px);max-width:406px;background:rgba(16,18,25,.9);backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:18px;display:grid;grid-template-columns:repeat(6,1fr);padding:8px 4px;box-shadow:0 20px 40px -20px #000}
+nav a{text-decoration:none;color:var(--muted);text-align:center;font-size:9px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:6px 0;border-radius:12px;position:relative}
+nav a span{display:block;font-size:19px;margin-bottom:3px;filter:grayscale(1) opacity(.6)}
+nav a.on{color:var(--em);background:rgba(0,229,138,.08)}
+nav a.on span{filter:none}
+nav a.on::after{content:"";position:absolute;top:-9px;left:50%;transform:translateX(-50%);width:22px;height:3px;border-radius:2px;background:var(--em);box-shadow:0 0 10px var(--em)}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">KNOW<em>PLAY</em><small>PLAY SMART. LEARN MORE.</small></div>
+    <div class="stats"><div class="st g">🪙 1 240</div><div class="st e">◆ 8 450</div></div>
+  </header>
+
+  <div class="hud">
+    <div class="av">🦊</div>
+    <div><h1>NORDICFOX</h1><p>Björkskataskolan · 8B · Scholar</p><div class="bar"><b></b></div></div>
+    <div class="lv"><b>12</b><span>LEVEL</span></div>
+  </div>
+
+  <div class="play">
+    <div class="k">REKOMMENDERAT FÖR DIG</div>
+    <h2>PLAY</h2>
+    <p>Kemi · Svår · Flerval — baserat på dina senaste 50 svar</p>
+    <span class="btn">▶ STARTA</span>
+  </div>
+
+  <div class="sec">
+    <div class="card streak"><div class="f">🔥</div><div><b>5 DAGARS STREAK</b><p>Missade dagar kostar inget.</p></div><div class="days"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+  </div>
+
+  <div class="sec"><h3>Dagens utmaning</h3>
+    <div class="card daily"><div class="t">HISTORIA · MEDEL · 10 FRÅGOR</div><h4>FRANSKA REVOLUTIONEN</h4><p>Hela 8B får samma frågor. Resultatet räknas till klassens poäng.</p><div class="rw"><span class="pill g">+250 XP</span><span class="pill e">+40 MYNT</span><span class="pill">⏱ 6 MIN</span></div></div>
+  </div>
+
+  <div class="sec"><h3>Spel <a>Alla spel →</a></h3>
+    <div class="row">
+      <div class="g" style="--c:#00e58a"><span>🃏</span><i class="lv">NY</i><b>Knowledge Blackjack</b><small>Nå 21 med rätt svar</small></div>
+      <div class="g" style="--c:#a855f7"><span>🎡</span><b>Knowledge Wheel</b><small>Snurra fram ett ämne</small></div>
+      <div class="g" style="--c:#ffc63d"><span>🎰</span><b>Knowledge Slots</b><small>Ämne · Nivå · Typ</small></div>
+      <div class="g" style="--c:#38bdf8"><span>⚡</span><b>Brain Rush</b><small>60 sekunder</small></div>
+      <div class="g" style="--c:#f472b6"><span>🔥</span><b>High Stakes Quiz</b><small>5 rundor</small></div>
+    </div>
+  </div>
+
+  <div class="sec"><h3>Fortsätt lära</h3>
+    <div class="card cont"><div class="ic">⚗️</div><div><b>Kemi · Kemiska bindningar</b><p>Kapitel 3 · Lektion 2 av 5</p></div><div class="pr">64%</div></div>
+  </div>
+
+  <div class="sec"><h3>Klassmatch · Vecka 45</h3>
+    <div class="card comp"><div><b>8B</b><span>Björkskataskolan</span><div class="sc">1 820</div></div><div class="vs">VS</div><div><b>8A</b><span>Björkskataskolan</span><div class="sc" style="color:var(--muted);text-shadow:none">1 655</div></div></div>
+  </div>
+
+  <nav>
+    <a class="on"><span>🏠</span>Hem</a><a><span>🎮</span>Spel</a><a><span>📚</span>Lär</a><a><span>🏫</span>Skolor</a><a><span>🏆</span>Topp</a><a><span>👤</span>Profil</a>
+  </nav>
+</div>
+</body>
+</html>
