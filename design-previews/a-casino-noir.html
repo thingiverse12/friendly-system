@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KNOWPLAY – Förslag A: Casino Noir</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;800&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#070807;--bg2:#0d100e;--felt:#0b2a1e;--felt2:#0f3b2a;
+  --card:#121614;--card2:#171c19;--line:rgba(255,255,255,.07);
+  --emerald:#19c37d;--emerald2:#0f8f5a;--gold:#e6b84a;--gold2:#b4871f;
+  --purple:#8b5cf6;--blue:#3b82f6;--text:#f2f1ec;--muted:#9aa39d;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font-family:Manrope,system-ui,sans-serif;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+.app{max-width:430px;margin:0 auto;min-height:100vh;position:relative;background:
+  radial-gradient(900px 400px at 50% -10%,rgba(25,195,125,.14),transparent 60%),
+  radial-gradient(600px 300px at 100% 20%,rgba(230,184,74,.08),transparent 60%),var(--bg);padding-bottom:96px}
+.serif{font-family:Cinzel,serif;letter-spacing:.06em}
+header{padding:18px 20px 8px;display:flex;align-items:center;justify-content:space-between}
+.brand{font-family:Cinzel,serif;font-weight:800;font-size:15px;letter-spacing:.22em;background:linear-gradient(180deg,#f7e2a1,#d9ad3c 55%,#9a7116);-webkit-background-clip:text;background-clip:text;color:transparent}
+.brand small{display:block;font-family:Manrope;font-weight:600;font-size:9px;letter-spacing:.3em;color:var(--muted);margin-top:3px}
+.chips{display:flex;gap:8px}
+.chip{display:flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:6px 10px;font-size:12px;font-weight:700}
+.chip i{width:14px;height:14px;border-radius:50%;display:inline-block}
+.chip .c{background:conic-gradient(var(--gold),#fff3c4,var(--gold2),var(--gold));box-shadow:0 0 0 2px #2a2110 inset}
+.chip .x{background:radial-gradient(circle at 30% 30%,#7ff0bd,var(--emerald) 60%,#0a5a39)}
+.profile{margin:12px 20px 0;display:flex;align-items:center;gap:14px}
+.avatar{width:58px;height:58px;border-radius:50%;padding:3px;background:conic-gradient(var(--gold) 0 72%,rgba(255,255,255,.08) 72% 100%);position:relative}
+.avatar div{width:100%;height:100%;border-radius:50%;background:linear-gradient(135deg,#1c3b2d,#0d1a14);display:grid;place-items:center;font-size:24px}
+.profile h1{font-size:18px;font-weight:800}
+.profile p{font-size:12px;color:var(--muted);margin-top:2px}
+.lvl{margin-left:auto;text-align:right}
+.lvl b{display:block;font-family:Cinzel,serif;font-size:11px;letter-spacing:.14em;color:var(--gold)}
+.lvl span{font-size:11px;color:var(--muted)}
+.xpbar{margin:12px 20px 0;height:8px;border-radius:999px;background:#151a17;border:1px solid var(--line);overflow:hidden;position:relative}
+.xpbar b{display:block;height:100%;width:72%;border-radius:999px;background:linear-gradient(90deg,var(--emerald2),var(--emerald),#9ff5cf);box-shadow:0 0 16px rgba(25,195,125,.5)}
+.xpbar b::after{content:"";position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 12px,rgba(255,255,255,.15) 12px 13px)}
+.xpmeta{margin:6px 20px 0;display:flex;justify-content:space-between;font-size:11px;color:var(--muted)}
+.play{margin:18px 20px 0;position:relative;border-radius:22px;padding:2px;background:linear-gradient(135deg,#f7e2a1,#b4871f 40%,#f2d27a 70%,#8a6413);box-shadow:0 18px 40px -14px rgba(230,184,74,.45)}
+.play>div{border-radius:20px;background:radial-gradient(120% 140% at 50% 0%,var(--felt2),var(--felt) 60%,#071a12);padding:20px;position:relative;overflow:hidden}
+.play>div::before{content:"";position:absolute;inset:8px;border:1px solid rgba(230,184,74,.35);border-radius:14px;pointer-events:none}
+.play>div::after{content:"♠ ♥ ♦ ♣";position:absolute;right:16px;top:14px;font-size:11px;letter-spacing:.4em;color:rgba(230,184,74,.45)}
+.play h2{font-family:Cinzel,serif;font-size:30px;letter-spacing:.3em;font-weight:800;color:#fff;text-shadow:0 2px 20px rgba(25,195,125,.6)}
+.play p{margin-top:6px;font-size:12px;color:#bfe6d3}
+.play .btn{margin-top:14px;display:inline-flex;align-items:center;gap:8px;background:linear-gradient(180deg,#ffe9a8,#e6b84a 50%,#c2912a);color:#2a1d05;font-weight:800;font-size:13px;letter-spacing:.12em;padding:12px 18px;border-radius:999px;box-shadow:0 8px 20px -6px rgba(230,184,74,.7),inset 0 1px 0 #fff6cf}
+.sec{margin:26px 20px 0}
+.sec h3{font-family:Cinzel,serif;font-size:12px;letter-spacing:.2em;color:var(--gold);display:flex;align-items:center;gap:10px}
+.sec h3::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,rgba(230,184,74,.4),transparent)}
+.sec h3 a{font-family:Manrope;font-size:11px;letter-spacing:0;color:var(--muted);font-weight:600;text-decoration:none}
+.card{margin-top:12px;background:linear-gradient(180deg,var(--card2),var(--card));border:1px solid var(--line);border-radius:18px;padding:16px;position:relative;overflow:hidden}
+.card.streak{display:flex;align-items:center;gap:14px}
+.flame{width:46px;height:46px;border-radius:14px;background:radial-gradient(circle at 50% 30%,#ffd27a,#ff8a3d 55%,#7a2a0a);display:grid;place-items:center;font-size:22px;box-shadow:0 0 20px rgba(255,138,61,.35)}
+.card.streak b{font-size:16px}
+.card.streak p{font-size:12px;color:var(--muted)}
+.dots{margin-left:auto;display:flex;gap:5px}
+.dots i{width:9px;height:9px;border-radius:50%;background:#262c28}
+.dots i.on{background:var(--emerald);box-shadow:0 0 8px var(--emerald)}
+.daily{background:linear-gradient(135deg,#1a1626,#14121c);border-color:rgba(139,92,246,.35)}
+.daily .tag{font-size:10px;letter-spacing:.2em;font-weight:800;color:#c4b5fd}
+.daily h4{margin-top:6px;font-size:16px}
+.daily p{font-size:12px;color:var(--muted);margin-top:4px}
+.daily .rw{margin-top:12px;display:flex;gap:8px}
+.pill{font-size:11px;font-weight:700;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:rgba(255,255,255,.03)}
+.pill.g{color:var(--gold);border-color:rgba(230,184,74,.4)}
+.pill.e{color:var(--emerald);border-color:rgba(25,195,125,.4)}
+.row{display:flex;gap:12px;overflow-x:auto;margin:12px -20px 0;padding:0 20px 6px;scrollbar-width:none}
+.row::-webkit-scrollbar{display:none}
+.gcard{flex:0 0 150px;height:190px;border-radius:18px;padding:14px;position:relative;overflow:hidden;border:1px solid var(--line);display:flex;flex-direction:column;justify-content:flex-end;background:var(--card)}
+.gcard::before{content:"";position:absolute;inset:0;background:var(--g);opacity:.9}
+.gcard::after{content:"";position:absolute;inset:6px;border:1px solid rgba(255,255,255,.12);border-radius:13px}
+.gcard span{position:relative;font-size:34px;margin-bottom:auto;filter:drop-shadow(0 4px 10px rgba(0,0,0,.5))}
+.gcard b{position:relative;font-family:Cinzel,serif;font-size:11px;letter-spacing:.1em;line-height:1.3}
+.gcard small{position:relative;font-size:10px;color:rgba(255,255,255,.7);margin-top:3px}
+.cont{display:flex;gap:12px;align-items:center}
+.cont .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:20px;background:linear-gradient(135deg,var(--blue),#1e3a8a)}
+.cont b{font-size:14px;display:block}
+.cont p{font-size:12px;color:var(--muted)}
+.cont .pr{margin-left:auto;width:44px;height:44px;border-radius:50%;background:conic-gradient(var(--emerald) 0 64%,#222824 64% 100%);display:grid;place-items:center;font-size:11px;font-weight:800}
+.cont .pr i{width:34px;height:34px;border-radius:50%;background:var(--card);display:grid;place-items:center;font-style:normal}
+.comp{display:flex;align-items:center;gap:12px}
+.vs{font-family:Cinzel,serif;font-weight:800;color:var(--gold);font-size:12px}
+.team{flex:1;text-align:center}
+.team b{display:block;font-size:14px}
+.team span{font-size:11px;color:var(--muted)}
+.team .sc{font-size:22px;font-weight:800;color:var(--emerald)}
+nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:430px;background:rgba(10,12,11,.86);backdrop-filter:blur(16px);border-top:1px solid rgba(230,184,74,.18);display:grid;grid-template-columns:repeat(6,1fr);padding:10px 6px calc(10px + env(safe-area-inset-bottom))}
+nav a{text-decoration:none;color:var(--muted);text-align:center;font-size:9.5px;font-weight:700;letter-spacing:.04em}
+nav a span{display:block;font-size:19px;margin-bottom:3px;filter:grayscale(1) opacity(.6)}
+nav a.on{color:var(--gold)}
+nav a.on span{filter:none}
+.ribbon{position:absolute;top:12px;right:-26px;transform:rotate(35deg);background:var(--gold);color:#2a1d05;font-size:9px;font-weight:800;letter-spacing:.1em;padding:3px 30px}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">KNOWPLAY<small>PLAY SMART. LEARN MORE.</small></div>
+    <div class="chips"><div class="chip"><i class="c"></i>1 240</div><div class="chip"><i class="x"></i>8 450 XP</div></div>
+  </header>
+
+  <div class="profile">
+    <div class="avatar"><div>🦊</div></div>
+    <div><h1>NordicFox</h1><p>Björkskataskolan · 8B</p></div>
+    <div class="lvl"><b>SCHOLAR</b><span>Nivå 12</span></div>
+  </div>
+  <div class="xpbar"><b></b></div>
+  <div class="xpmeta"><span>Nivå 12</span><span>550 XP kvar till Nivå 13</span></div>
+
+  <div class="play"><div>
+    <h2>PLAY</h2>
+    <p>AI:n rekommenderar: Kemi · Svår · Flerval</p>
+    <span class="btn">▶ STARTA SPEL</span>
+  </div></div>
+
+  <div class="sec">
+    <div class="card streak"><div class="flame">🔥</div><div><b>5 dagar i rad</b><p>Ingen stress – streaken är bara en bonus.</p></div><div class="dots"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i></i><i></i></div></div>
+  </div>
+
+  <div class="sec"><h3>DAGENS UTMANING</h3>
+    <div class="card daily"><span class="ribbon">NY</span><div class="tag">HISTORIA · MEDEL</div><h4>Franska revolutionen – 10 frågor</h4><p>Alla i 8B får samma frågor. Resultatet räknas till klassen.</p><div class="rw"><span class="pill g">+250 XP</span><span class="pill e">+40 mynt</span><span class="pill">⏱ 6 min</span></div></div>
+  </div>
+
+  <div class="sec"><h3>SPEL <a>Visa alla</a></h3>
+    <div class="row">
+      <div class="gcard" style="--g:linear-gradient(160deg,#0f3b2a,#071a12)"><span>🃏</span><b>KNOWLEDGE BLACKJACK</b><small>Nå 21 med rätt svar</small></div>
+      <div class="gcard" style="--g:linear-gradient(160deg,#3b2a6b,#160f2e)"><span>🎡</span><b>KNOWLEDGE WHEEL</b><small>Snurra fram ett ämne</small></div>
+      <div class="gcard" style="--g:linear-gradient(160deg,#5a3a0a,#1f1403)"><span>🎰</span><b>KNOWLEDGE SLOTS</b><small>Ämne · Nivå · Typ</small></div>
+      <div class="gcard" style="--g:linear-gradient(160deg,#1e3a8a,#0b1540)"><span>⚡</span><b>BRAIN RUSH</b><small>60 sekunder</small></div>
+    </div>
+  </div>
+
+  <div class="sec"><h3>FORTSÄTT LÄRA</h3>
+    <div class="card cont"><div class="ic">⚗️</div><div><b>Kemi · Kemiska bindningar</b><p>Kapitel 3 · Lektion 2 av 5</p></div><div class="pr"><i>64%</i></div></div>
+  </div>
+
+  <div class="sec"><h3>KLASSMATCH · VECKA 45</h3>
+    <div class="card comp"><div class="team"><b>8B</b><span>Björkskataskolan</span><div class="sc">1 820</div></div><div class="vs">VS</div><div class="team"><b>8A</b><span>Björkskataskolan</span><div class="sc" style="color:var(--muted)">1 655</div></div></div>
+  </div>
+
+  <nav>
+    <a class="on"><span>🏠</span>Hem</a><a><span>🎮</span>Spel</a><a><span>📚</span>Lär</a><a><span>🏫</span>Skolor</a><a><span>🏆</span>Topplista</a><a><span>👤</span>Profil</a>
+  </nav>
+</div>
+</body>
+</html>
