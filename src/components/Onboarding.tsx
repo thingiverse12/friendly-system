@@ -37,7 +37,7 @@ export function Onboarding() {
     <main className="app-shell no-nav">
       <div className="page pt-10">
         <div className="brand text-[18px]">KNOWPLAY<small>PLAY SMART. LEARN MORE.</small></div>
-        <div className="flex gap-1.5 mt-6">{[0, 1].map((i) => <i key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-gold" : "bg-white/10"}`} />)}</div>
+        <div className="flex gap-1.5 mt-6">{[0, 1].map((i) => <i key={i} className={`h-1.5 flex-1 rounded-full ${i <= step ? "bg-gold" : "bg-[var(--overlay2)]"}`} />)}</div>
 
         {step === 0 && (
           <div className="fade-up">
@@ -55,7 +55,7 @@ export function Onboarding() {
                 <label className="lbl">Avatar</label>
                 <div className="grid grid-cols-4 gap-2">
                   {AVATARS.map((a) => (
-                    <button key={a} type="button" onClick={() => setAvatar(a)} className={`h-16 rounded-2xl text-3xl border ${avatar === a ? "border-gold bg-gold/10" : "border-white/10 bg-white/5"}`}>{a}</button>
+                    <button key={a} type="button" onClick={() => setAvatar(a)} className={`h-16 rounded-2xl text-3xl border ${avatar === a ? "border-gold bg-gold/10" : "border-[var(--line)] bg-[var(--overlay)]"}`}>{a}</button>
                   ))}
                 </div>
                 <p className="muted text-[11px] mt-2">Fler avatarer låser du upp med mynt i Treasure Vault.</p>

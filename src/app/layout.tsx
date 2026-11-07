@@ -11,7 +11,11 @@ export const metadata: Metadata = {
   appleWebApp: { capable: true, title: "KNOWPLAY", statusBarStyle: "black-translucent" },
   icons: { icon: "/icons/icon-192.png", apple: "/icons/icon-192.png" },
 };
-export const viewport: Viewport = { themeColor: "#070807", width: "device-width", initialScale: 1, viewportFit: "cover" };
+export async function generateViewport(): Promise<Viewport> {
+  const { profile } = await getSession();
+  const light = profile?.theme === "ljus";
+  return { themeColor: light ? "#f4f1e8" : "#121815", width: "device-width", initialScale: 1, viewportFit: "cover" };
+}
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const { profile } = await getSession();

@@ -5,7 +5,7 @@ import { api } from "@/lib/api";
 import { useToast } from "./Toast";
 import type { Settings } from "@/lib/types";
 
-const THEME_LABEL: Record<string, string> = { noir: "Casino Noir", emerald: "Emerald", royal: "Royal Blue", violet: "Violet" };
+const THEME_LABEL: Record<string, string> = { noir: "Casino Noir", ljus: "Dagsljus", emerald: "Emerald", royal: "Royal Blue", violet: "Violet" };
 
 export function SettingsClient({ profile, avatars, themes, email }: { profile: { alias: string; avatar: string; theme: string; role: string; settings: Settings }; avatars: string[]; themes: string[]; email: string }) {
   const router = useRouter();
@@ -58,7 +58,7 @@ export function SettingsClient({ profile, avatars, themes, email }: { profile: {
     location.href = "/";
   }
   const Row = ({ k, label, desc }: { k: keyof Settings; label: string; desc: string }) => (
-    <div className="flex items-center gap-3 py-2.5 border-b border-white/10 last:border-0">
+    <div className="flex items-center gap-3 py-2.5 border-b border-[var(--line)] last:border-0">
       <div className="flex-1"><b className="text-[14px]">{label}</b><p className="muted text-[11px]">{desc}</p></div>
       <button type="button" className={`toggle ${s[k] ? "on" : ""}`} aria-pressed={!!s[k]} onClick={() => toggle(k, !s[k] as never)} />
     </div>
@@ -70,7 +70,7 @@ export function SettingsClient({ profile, avatars, themes, email }: { profile: {
         <div><label className="lbl">Alias</label><input className="input" value={alias} maxLength={20} onChange={(e) => setAlias(e.target.value)} /></div>
         <div>
           <label className="lbl">Avatar</label>
-          <div className="flex gap-2 flex-wrap">{avatars.map((a) => <button key={a} type="button" onClick={() => setAvatar(a)} className={`w-12 h-12 rounded-xl text-2xl border ${avatar === a ? "border-gold bg-gold/10" : "border-white/10 bg-white/5"}`}>{a}</button>)}</div>
+          <div className="flex gap-2 flex-wrap">{avatars.map((a) => <button key={a} type="button" onClick={() => setAvatar(a)} className={`w-12 h-12 rounded-xl text-2xl border ${avatar === a ? "border-gold bg-gold/10" : "border-[var(--line)] bg-[var(--overlay)]"}`}>{a}</button>)}</div>
         </div>
         <div>
           <label className="lbl">Tema</label>

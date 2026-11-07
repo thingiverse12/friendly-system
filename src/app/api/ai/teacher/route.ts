@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { handler, readJson, requireUser, rateLimit } from "@/lib/auth";
 import { chat, TEACHER_SYSTEM, activeProvider, type ChatMessage } from "@/lib/ai";
 
-const OFFLINE = "AI-läraren är i offline-läge (ingen AI-nyckel är konfigurerad). Här är den verifierade förklaringen:";
+const OFFLINE = "AI-läraren är i offline-läge. Här är den verifierade förklaringen:";
 
 export const POST = handler(async (req) => {
   const { profile } = await requireUser();
@@ -10,7 +10,7 @@ export const POST = handler(async (req) => {
   const b = await readJson<{ prompt: string; subject?: string; your_answer?: string | null; correct_answer?: string | null; explanation?: string | null; mode: "after" | "hint" | "chat"; message?: string; history?: { role: "user" | "assistant"; content: string }[] }>(req);
   if (!activeProvider()) {
     const text = b.mode === "chat"
-      ? "AI-läraren är i offline-läge: ingen AI-nyckel är konfigurerad på servern. Be den som driver KNOWPLAY lägga till en gratis GROQ_API_KEY eller GEMINI_API_KEY. Under tiden hittar du förklaringar i lektionerna under Lär."
+      ? "AI-läraren är i offline-läge: AI är avstängd på servern. Under tiden hittar du förklaringar i lektionerna under Lär."
       : `${OFFLINE}\n\n${b.explanation ?? "Ingen förklaring finns sparad för den här frågan."}`;
     return NextResponse.json({ text, offline: true });
   }
@@ -25,7 +25,7 @@ export const POST = handler(async (req) => {
   }
   try {
     const r = await chat(messages);
-    return NextResponse.json({ text: r?.text?.trim() || "Jag kunde inte formulera ett svar just nu.", offline: false, provider: r?.provider.name });
+    return NextResponse.json({ text: r?.text?.trim() || "Jag kunde inte formulera ett svar just nu.", offline: false, provider: r?.provider.label });
   } catch (e) {
     console.error(e);
     return NextResponse.json({ text: `AI-tjänsten svarade inte just nu. ${b.explanation ? "Verifierad förklaring: " + b.explanation : ""}`, offline: true });

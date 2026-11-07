@@ -17,11 +17,13 @@ export default async function Materials() {
     <>
       <TopBar title="Eget material" back="/learn" />
       <div className="page">
-        {!ai && (
+        {!ai ? (
           <div className="card mb-4 text-[12px] border-gold/30">
             <span className="pill g">OFFLINE-LÄGE</span>
-            <p className="mt-2">Ingen AI-nyckel är konfigurerad. Du kan ändå ladda upp text och få en enkel automatisk sammanfattning, men inga AI-genererade frågor. Lägg till en gratis Groq- eller Gemini-nyckel på servern för full funktion.</p>
+            <p className="mt-2">AI är avstängd på servern. Du kan ändå ladda upp text och få en enkel automatisk sammanfattning, men inga AI-genererade frågor.</p>
           </div>
+        ) : (
+          <p className="muted text-[11px] mb-3">🤖 {ai.label}{ai.open ? " · öppna modellvikter" : ""} · texten skickas till AI:n men lagras inte där.</p>
         )}
         <MaterialUpload subjects={subjects.map((s) => ({ id: s.id, name: s.name }))} />
         <div className="sec">

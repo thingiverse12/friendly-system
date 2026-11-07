@@ -33,12 +33,12 @@ export function AiChat({ context, online, providerName }: { context: string | nu
   return (
     <div>
       <div className="flex gap-2 flex-wrap">
-        <span className={`pill ${online ? "p" : "g"}`}>{online ? `🤖 Online · ${providerName}` : "Offline-läge · ingen AI-nyckel"}</span>
+        <span className={`pill ${online ? "p" : "g"}`}>{online ? `🤖 Online · ${providerName}` : "Offline-läge"}</span>
         <span className="pill">Övningsläge: ledtrådar före facit</span>
       </div>
       <div ref={box} className="card mt-3 h-[52vh] overflow-y-auto grid gap-2 content-start">
         {msgs.map((m, i) => (
-          <div key={i} className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-[14px] whitespace-pre-wrap ${m.role === "user" ? "justify-self-end bg-gold/15 border border-gold/30" : "bg-white/5 border border-white/10"}`}>{m.content}</div>
+          <div key={i} className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-[14px] whitespace-pre-wrap ${m.role === "user" ? "justify-self-end bg-gold/15 border border-gold/30" : "bg-[var(--overlay)] border border-[var(--line)]"}`}>{m.content}</div>
         ))}
         {busy && <div className="spinner" />}
       </div>

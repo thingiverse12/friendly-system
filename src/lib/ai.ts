@@ -1,25 +1,35 @@
 /**
- * Provider-agnostic LLM access. Picks the first configured FREE-tier friendly provider:
+ * Provider-agnostic LLM access. Picks the first configured provider:
  *   GROQ_API_KEY      → Groq (OpenAI-compatible, llama-3.3-70b-versatile)
  *   GEMINI_API_KEY    → Google AI Studio (gemini-2.0-flash)
  *   OPENROUTER_API_KEY→ OpenRouter (free models)
  *   OPENAI_API_KEY    → OpenAI
- * Without any key the app runs in a clearly labeled offline mode (no fake AI output).
+ *   (ingen nyckel)    → Pollinations – öppen källkods-gateway (github.com/pollinations/pollinations)
+ *                       som utan nyckel serverar den öppna modellen GPT-OSS 20B (Apache 2.0), hostad i EU.
+ *                       Vi skickar private=true så inget hamnar i deras publika flöde.
+ * Sätt AI_DISABLE_FREE=1 för att stänga av den nyckelfria vägen (då körs offline-läge utan nyckel).
  */
 export type ChatMessage = { role: "system" | "user" | "assistant"; content: string };
 
 export interface Provider {
   name: string;
   model: string;
+  /** Human readable label shown in the UI. */
+  label: string;
+  /** True when the underlying model weights are open source / open weights. */
+  open: boolean;
 }
+
+const POLLINATIONS_URL = "https://text.pollinations.ai/openai";
 
 export function activeProvider(): Provider | null {
   const override = process.env.AI_MODEL;
-  if (process.env.GROQ_API_KEY) return { name: "groq", model: override || "llama-3.3-70b-versatile" };
-  if (process.env.GEMINI_API_KEY) return { name: "gemini", model: override || "gemini-2.0-flash" };
-  if (process.env.OPENROUTER_API_KEY) return { name: "openrouter", model: override || "meta-llama/llama-3.3-70b-instruct:free" };
-  if (process.env.OPENAI_API_KEY) return { name: "openai", model: override || "gpt-4o-mini" };
-  return null;
+  if (process.env.GROQ_API_KEY) return { name: "groq", model: override || "llama-3.3-70b-versatile", label: "Groq · Llama 3.3 70B", open: true };
+  if (process.env.GEMINI_API_KEY) return { name: "gemini", model: override || "gemini-2.0-flash", label: "Google Gemini Flash", open: false };
+  if (process.env.OPENROUTER_API_KEY) return { name: "openrouter", model: override || "meta-llama/llama-3.3-70b-instruct:free", label: "OpenRouter", open: true };
+  if (process.env.OPENAI_API_KEY) return { name: "openai", model: override || "gpt-4o-mini", label: "OpenAI", open: false };
+  if (process.env.AI_DISABLE_FREE === "1") return null;
+  return { name: "pollinations", model: override || "openai-fast", label: "GPT-OSS 20B · öppen källkod (gratis, EU)", open: true };
 }
 
 async function openaiCompatible(url: string, key: string, model: string, messages: ChatMessage[], json: boolean, extraHeaders: Record<string, string> = {}) {
@@ -52,6 +62,33 @@ async function gemini(key: string, model: string, messages: ChatMessage[], json:
   return String(data.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? "").join("") ?? "");
 }
 
+/** Keyless, open-source gateway. No auth header; JSON mode is requested via the prompt (parseJson tolerates prose around it). */
+async function pollinations(model: string, messages: ChatMessage[], json: boolean) {
+  const msgs = json ? [...messages, { role: "system" as const, content: "Svara ENBART med ett giltigt JSON-objekt. Ingen text före eller efter." }] : messages;
+  const body = { model, messages: msgs, temperature: 0.4, max_tokens: 1800, private: true, referrer: "knowplay" };
+  let lastErr = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(POLLINATIONS_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(45_000),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const msg = data.choices?.[0]?.message ?? {};
+      const text = String(msg.content ?? "").trim();
+      if (text) return text;
+      lastErr = "tomt svar";
+    } else {
+      lastErr = `${res.status}: ${(await res.text()).slice(0, 160)}`;
+      if (res.status !== 429 && res.status < 500) break;
+    }
+    await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+  }
+  throw new Error(`Pollinations error ${lastErr}`);
+}
+
 export async function chat(messages: ChatMessage[], opts: { json?: boolean } = {}): Promise<{ text: string; provider: Provider } | null> {
   const p = activeProvider();
   if (!p) return null;
@@ -59,6 +96,7 @@ export async function chat(messages: ChatMessage[], opts: { json?: boolean } = {
   let text = "";
   if (p.name === "groq") text = await openaiCompatible("https://api.groq.com/openai/v1/chat/completions", process.env.GROQ_API_KEY!, p.model, messages, json);
   else if (p.name === "gemini") text = await gemini(process.env.GEMINI_API_KEY!, p.model, messages, json);
+  else if (p.name === "pollinations") text = await pollinations(p.model, messages, json);
   else if (p.name === "openrouter")
     text = await openaiCompatible("https://openrouter.ai/api/v1/chat/completions", process.env.OPENROUTER_API_KEY!, p.model, messages, json, { "HTTP-Referer": "https://knowplay.app", "X-Title": "KNOWPLAY" });
   else text = await openaiCompatible("https://api.openai.com/v1/chat/completions", process.env.OPENAI_API_KEY!, p.model, messages, json);

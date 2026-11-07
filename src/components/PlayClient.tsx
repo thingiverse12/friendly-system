@@ -199,13 +199,13 @@ export function PlayClient({ id }: { id: string }) {
             </div>
             {result.blackjack?.card && <div className="playing-card pop red">{result.blackjack.card === 11 ? "A" : result.blackjack.card}</div>}
           </div>
-          {result.explanation && <p className="text-[13px] mt-3 border-t border-white/10 pt-3">{result.explanation}</p>}
+          {result.explanation && <p className="text-[13px] mt-3 border-t border-[var(--line)] pt-3">{result.explanation}</p>}
           {result.level_up && <div className="pill g mt-3">🎉 Nivå {result.level_up}!</div>}
           {result.achievements?.map((a) => <div key={a.id} className="pill p mt-2 ml-1">{a.icon} {a.name}</div>)}
           {!s.competitive && (
             <div className="mt-3">
               {aiText ? (
-                <div className="text-[13px] bg-white/5 rounded-xl p-3 border border-purple/30"><span className="pill p mb-1">AI-LÄRARE</span><p className="mt-1 whitespace-pre-wrap">{aiText}</p></div>
+                <div className="text-[13px] bg-[var(--overlay)] rounded-xl p-3 border border-purple/30"><span className="pill p mb-1">AI-LÄRARE</span><p className="mt-1 whitespace-pre-wrap">{aiText}</p></div>
               ) : (
                 <button className="btn-ghost text-[12px]" disabled={aiBusy} onClick={() => askAi(q, result)}>{aiBusy ? "Tänker…" : "🧠 Förklara mer (AI-lärare)"}</button>
               )}
@@ -414,12 +414,12 @@ function Summary({ s, onReplay, askAi, aiText, aiBusy }: { s: SessionView; onRep
                 <span className="pill e">+{r.xp}</span>
               </button>
               {open === r.idx && (
-                <div className="mt-2 text-[12px] border-t border-white/10 pt-2 grid gap-1">
+                <div className="mt-2 text-[12px] border-t border-[var(--line)] pt-2 grid gap-1">
                   <p><span className="muted">Ditt svar:</span> {r.your_answer}</p>
                   <p><span className="muted">Rätt svar:</span> {r.correct_answer}</p>
                   {r.explanation && <p className="mt-1">{r.explanation}</p>}
                   {aiText && open === r.idx ? (
-                    <div className="bg-white/5 rounded-xl p-3 border border-purple/30 mt-1"><span className="pill p mb-1">AI-LÄRARE</span><p className="mt-1 whitespace-pre-wrap">{aiText}</p></div>
+                    <div className="bg-[var(--overlay)] rounded-xl p-3 border border-purple/30 mt-1"><span className="pill p mb-1">AI-LÄRARE</span><p className="mt-1 whitespace-pre-wrap">{aiText}</p></div>
                   ) : (
                     <button className="btn-ghost text-[12px] mt-1 justify-self-start" disabled={aiBusy} onClick={() => askAi({ idx: r.idx, prompt: r.prompt, qtype: "mcq", options: null, difficulty: "medium", subject_id: s.subject_id ?? "", source: "verified" }, { correct: !!r.correct, correct_answer: r.correct_answer, explanation: r.explanation, xp: r.xp, coins: 0, finished: true, session: s, flags: [] })}>
                       {aiBusy ? "Tänker…" : "🧠 Förklara mer"}

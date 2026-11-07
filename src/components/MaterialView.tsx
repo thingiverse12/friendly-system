@@ -34,7 +34,7 @@ export function MaterialView({ id, concepts, flashcards, questionCount }: { id: 
         <div className="card mt-3 grid gap-2">
           {concepts.length === 0 && <p className="muted text-[13px]">Inga begrepp hittades.</p>}
           {concepts.map((c, k) => (
-            <div key={k} className="border-b border-white/10 last:border-0 pb-2 last:pb-0">
+            <div key={k} className="border-b border-[var(--line)] last:border-0 pb-2 last:pb-0">
               <b className="text-[14px] gold">{c.term}</b>
               <p className="text-[13px] mt-0.5">{c.definition}</p>
             </div>

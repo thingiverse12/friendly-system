@@ -90,7 +90,7 @@ export function SchoolPicker({ onDone }: { onDone: (info: { school: string; labe
             </button>
           )}
           {creatingSchool && (
-            <div className="grid gap-2 border-t border-white/10 pt-3">
+            <div className="grid gap-2 border-t border-[var(--line)] pt-3">
               <input className="input" placeholder="Skolans namn" value={newSchool.name} onChange={(e) => setNewSchool({ ...newSchool, name: e.target.value })} />
               <input className="input" placeholder="Ort" value={newSchool.city} onChange={(e) => setNewSchool({ ...newSchool, city: e.target.value })} />
               <button className="btn-gold" disabled={busy} onClick={() => run(async () => {
@@ -130,7 +130,7 @@ export function SchoolPicker({ onDone }: { onDone: (info: { school: string; labe
           {!creatingClass ? (
             <button type="button" className="btn-ghost" onClick={() => setCreatingClass(true)}>+ Skapa ny klass</button>
           ) : (
-            <div className="grid gap-2 border-t border-white/10 pt-3">
+            <div className="grid gap-2 border-t border-[var(--line)] pt-3">
               <div className="seg flex-wrap">
                 {YEARS.map((y) => (
                   <button key={y.v} type="button" className={newClass.year === y.v ? "on" : ""} onClick={() => setNewClass({ ...newClass, year: y.v })}>{y.l}</button>

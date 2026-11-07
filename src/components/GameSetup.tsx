@@ -37,12 +37,12 @@ export function GameSetup({ mode, pick, subjects, rec, preset, preferredFormat }
           <label className="lbl">Ämne {pick === "optional-subject" && <span className="normal-case font-medium">(valfritt)</span>}</label>
           <div className="grid grid-cols-3 gap-2">
             {pick === "optional-subject" && (
-              <button type="button" onClick={() => setSubject(null)} className={`rounded-2xl p-3 text-center border ${subject === null ? "border-gold bg-gold/10" : "border-white/10 bg-white/5"}`}>
+              <button type="button" onClick={() => setSubject(null)} className={`rounded-2xl p-3 text-center border ${subject === null ? "border-gold bg-gold/10" : "border-[var(--line)] bg-[var(--overlay)]"}`}>
                 <div className="text-2xl">🎲</div><div className="text-[11px] font-bold mt-1">Blandat</div>
               </button>
             )}
             {subjects.map((s) => (
-              <button key={s.id} type="button" onClick={() => { setSubject(s.id); if (pick === "subject+difficulty") setDifficulty(rec.perSubject[s.id]?.difficulty ?? "easy"); }} className={`rounded-2xl p-3 text-center border ${subject === s.id ? "border-gold bg-gold/10" : "border-white/10 bg-white/5"}`}>
+              <button key={s.id} type="button" onClick={() => { setSubject(s.id); if (pick === "subject+difficulty") setDifficulty(rec.perSubject[s.id]?.difficulty ?? "easy"); }} className={`rounded-2xl p-3 text-center border ${subject === s.id ? "border-gold bg-gold/10" : "border-[var(--line)] bg-[var(--overlay)]"}`}>
                 <div className="text-2xl">{s.icon}</div>
                 <div className="text-[11px] font-bold mt-1">{s.name}</div>
                 {rec.perSubject[s.id]?.accuracy !== null && rec.perSubject[s.id]?.accuracy !== undefined && <div className="muted text-[10px]">{Math.round(rec.perSubject[s.id].accuracy! * 100)} %</div>}

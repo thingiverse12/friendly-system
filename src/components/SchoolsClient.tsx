@@ -67,7 +67,7 @@ export function SchoolsClient(props: { mode: "join" } | { mode: "manage"; joinCo
         {props.canManage && <button className="btn-ghost text-[12px]" disabled={busy} onClick={() => act("/api/classes/renew", "Ny kod skapad")}>🔄 Ny kod</button>}
         {props.canManage && code && <button className="btn-ghost text-[12px]" disabled={busy} onClick={() => confirm("Stäng koden? Ingen kan gå med förrän du skapar en ny.") && act("/api/classes/revoke", "Koden är stängd")}>⛔ Stäng</button>}
       </div>
-      <div className="flex gap-2 mt-4 pt-3 border-t border-white/10 flex-wrap">
+      <div className="flex gap-2 mt-4 pt-3 border-t border-[var(--line)] flex-wrap">
         <button className="btn-ghost text-[12px]" onClick={() => setReport("school")}>⚠ Rapportera dubblett av skola</button>
         <button className="btn-ghost text-[12px]" onClick={() => setReport("class")}>⚠ Rapportera klass</button>
         <button className="btn-ghost text-[12px] ml-auto" disabled={busy} onClick={() => confirm("Lämna klassen?") && act("/api/classes/leave", "Du har lämnat klassen")}>Lämna</button>

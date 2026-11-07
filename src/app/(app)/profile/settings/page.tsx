@@ -11,7 +11,7 @@ export default async function Settings() {
   const p = profile;
   const { data: owned } = await admin().from("user_cosmetics").select("cosmetic_id,cosmetics(kind,value,name)").eq("user_id", p.id);
   const avatars = ["🦊", "🐱", "🐸", "🐵", "🐧", "🐨", "🐯", "🦋", ...(owned ?? []).map((o) => o.cosmetics as unknown as { kind: string; value: string }).filter((c) => c?.kind === "avatar").map((c) => c.value)];
-  const themes = ["noir", ...(owned ?? []).map((o) => o.cosmetics as unknown as { kind: string; value: string }).filter((c) => c?.kind === "theme").map((c) => c.value)];
+  const themes = ["noir", "ljus", ...(owned ?? []).map((o) => o.cosmetics as unknown as { kind: string; value: string }).filter((c) => c?.kind === "theme").map((c) => c.value)];
   return (
     <>
       <TopBar title="Inställningar" back="/profile" />

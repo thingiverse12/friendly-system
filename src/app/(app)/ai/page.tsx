@@ -9,7 +9,7 @@ export default async function AiPage({ searchParams }: { searchParams: Promise<{
     <>
       <TopBar title="AI-läraren" back="/learn" />
       <div className="page">
-        <AiChat context={ctx ?? null} online={!!p} providerName={p?.name ?? null} />
+        <AiChat context={ctx ?? null} online={!!p} providerName={p?.label ?? null} />
       </div>
     </>
   );

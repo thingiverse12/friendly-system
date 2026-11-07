@@ -1,5 +1,6 @@
 import { requireAdminPage } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
+import { activeProvider } from "@/lib/ai";
 export const dynamic = "force-dynamic";
 export default async function AdminHome() {
   await requireAdminPage();
@@ -16,7 +17,7 @@ export default async function AdminHome() {
     count("game_sessions", (q) => q.gte("created_at", since)), count("reports", (q) => q.eq("status", "open")), count("security_events", (q) => q.eq("severity", "review")),
     db.from("xp_events").select("amount").gte("created_at", since).then((r) => (r.data ?? []).reduce((a, e) => a + e.amount, 0)),
   ]);
-  const cards = [["Användare", users], ["Frågor (varav AI)", `${questions} (${aiq})`], ["Skolor / klasser", `${schools} / ${classes}`], ["Rundor senaste 7 d", sessions], ["XP utdelat 7 d", xp], ["Öppna rapporter", reports], ["Säkerhet: kräver granskning", review]];
+  const cards = [["Användare", users], ["Frågor (varav AI)", `${questions} (${aiq})`], ["Skolor / klasser", `${schools} / ${classes}`], ["Rundor senaste 7 d", sessions], ["XP utdelat 7 d", xp], ["Öppna rapporter", reports], ["Säkerhet: kräver granskning", review], ["AI-motor", activeProvider()?.label ?? "Avstängd (offline-läge)"]];
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
       {cards.map(([l, v]) => <div key={String(l)} className="stat"><b>{String(v)}</b><span>{l}</span></div>)}
