@@ -57,7 +57,7 @@ KNOWPLAY fungerar med riktig AI direkt, utan konto eller nyckel: anrop går till
 3. **OpenRouter** (gratis-modeller): <https://openrouter.ai/keys>. Lägg som `OPENROUTER_API_KEY`.
 
 ### Databas
-Migrationerna ligger i `supabase/migrations/` och seed-generatorn i `supabase/seed/content.py` (`python3 supabase/seed/content.py > supabase/seed/0002_seed.sql`). Kör i ordning: `0001_init.sql` → `0002_seed.sql` → `0003_functions.sql`.
+Migrationerna ligger i `supabase/migrations/` och seed-generatorn i `supabase/seed/content.py` (grundinnehåll) och `supabase/seed/content_books.py` (läroboksavsnitt: Kolets kemi, Världshandel/ideologier, Vitaminer & mineraler – ämnet Idrott och hälsa)` (`python3 supabase/seed/content.py > supabase/seed/0002_seed.sql`). Kör i ordning: `0001_init.sql` → `0002_seed.sql` → `0003_functions.sql`.
 
 ## Deploy (Vercel)
 Projektet är kopplat till detta repo; varje push till `main`/produktionsgrenen bygger automatiskt. Sätt miljövariablerna ovan under *Settings → Environment Variables* och lägg Vercel-URL:en som *Site URL* i Supabase → Authentication → URL Configuration.
