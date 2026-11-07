@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
+import { SubNav, NAV_ME } from "@/components/SubNav";
 import { Avatar } from "@/components/Avatar";
 import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
@@ -38,7 +39,8 @@ export default async function Profile() {
   }
   return (
     <>
-      <TopBar title="Profil" right={<Link href="/profile/settings" className="back" aria-label="Inställningar">⚙️</Link>} />
+      <TopBar title="Jag" right={<Link href="/profile/settings" className="back" aria-label="Inställningar">⚙️</Link>} />
+      <SubNav items={NAV_ME} />
       <div className="page">
         <div className="card felt flex items-center gap-4">
           <Avatar emoji={p.avatar} pct={lp.pct} size="lg" frame={equippedFrame} />
@@ -58,6 +60,7 @@ export default async function Profile() {
           <Link href="/vault" className="btn-gold flex-1">💎 Treasure Vault</Link>
           <Link href="/profile/settings" className="btn-ghost flex-1">Inställningar</Link>
         </div>
+        <Link href="/profile/accessibility" className="card interactive mt-3 flex items-center gap-3"><span className="text-2xl">♿</span><div><b className="text-[14px]">Tillgänglighet</b><p className="muted text-[12px]">Dyslexi-läge, färgblindhet, textstorlek, kontrast, fokusläge</p></div><span className="ml-auto gold">›</span></Link>
         {p.role === "admin" && <Link href="/admin" className="card interactive mt-3 flex items-center gap-3"><span className="text-2xl">🛡️</span><div><b className="text-[14px]">Adminpanel</b><p className="muted text-[12px]">Användare, frågor, skolor, säkerhet, XP-logg</p></div></Link>}
 
         <div className="sec">

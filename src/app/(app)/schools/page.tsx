@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
+import { SubNav, NAV_CLASS } from "@/components/SubNav";
 import { SchoolsClient } from "@/components/SchoolsClient";
 import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
@@ -15,7 +16,8 @@ export default async function Schools() {
   if (!p.class_id) {
     return (
       <>
-        <TopBar title="Skolor" />
+        <TopBar title="Klass & skola" />
+        <SubNav items={NAV_CLASS} />
         <div className="page">
           <div className="card felt mb-4">
             <b className="text-[15px]">Du är inte med i någon klass</b>
@@ -44,7 +46,8 @@ export default async function Schools() {
   const mem = (members ?? []) as { user_id: string; alias: string; avatar: string; xp: number; is_public: boolean }[];
   return (
     <>
-      <TopBar title="Skolor" />
+      <TopBar title="Klass & skola" />
+        <SubNav items={NAV_CLASS} />
       <div className="page">
         <div className="card felt">
           <div className="serif text-[11px] tracking-[.14em] text-gold">MIN KLASS</div>

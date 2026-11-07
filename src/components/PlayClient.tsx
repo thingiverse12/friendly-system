@@ -218,7 +218,7 @@ export function PlayClient({ id }: { id: string }) {
       </div>
 
       {result && (
-        <div className={`card mt-3 pop ${result.correct ? "border-emerald/40" : "border-red-500/40"}`}>
+        <div className={`card mt-3 pop ${result.correct ? "res-ok" : "res-bad"}`}>
           <div className="flex items-center gap-3">
             <span className="text-3xl">{result.correct ? "✅" : "❌"}</span>
             <div className="flex-1">

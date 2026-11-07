@@ -2,21 +2,21 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+/** Fem tydliga kategorier. Allt annat ligger som undersidor i någon av dem. */
 const items = [
-  { href: "/home", label: "Hem", icon: "🏠" },
-  { href: "/games", label: "Spel", icon: "🎰" },
-  { href: "/learn", label: "Lär", icon: "📚" },
-  { href: "/schools", label: "Skolor", icon: "🏫" },
-  { href: "/rankings", label: "Topplista", icon: "🏆" },
-  { href: "/profile", label: "Profil", icon: "👤" },
+  { href: "/home", label: "Hem", icon: "🏠", match: ["/home"] },
+  { href: "/games", label: "Spel", icon: "🎰", match: ["/games", "/play", "/duels"] },
+  { href: "/learn", label: "Lär", icon: "📚", match: ["/learn", "/ai"] },
+  { href: "/schools", label: "Klass", icon: "🏫", match: ["/schools", "/rankings"] },
+  { href: "/profile", label: "Jag", icon: "👤", match: ["/profile", "/vault"] },
 ];
 
 export function BottomNav() {
   const path = usePathname();
   return (
-    <nav className="bottom-nav" aria-label="Huvudmeny">
+    <nav className="bottom-nav" aria-label="Huvudmeny" style={{ gridTemplateColumns: `repeat(${items.length}, 1fr)` }}>
       {items.map((it) => {
-        const on = path === it.href || path.startsWith(it.href + "/") || (it.href === "/games" && path.startsWith("/play"));
+        const on = it.match.some((m) => path === m || path.startsWith(m + "/"));
         return (
           <Link key={it.href} href={it.href} className={on ? "on" : ""} aria-current={on ? "page" : undefined}>
             <span aria-hidden>{it.icon}</span>

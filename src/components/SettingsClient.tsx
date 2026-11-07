@@ -65,6 +65,7 @@ export function SettingsClient({ profile, avatars, themes, email }: { profile: {
   );
   return (
     <div className="grid gap-4">
+      <a href="/profile/accessibility" className="card interactive flex items-center gap-3"><span className="text-2xl">♿</span><div><b className="text-[14px]">Tillgänglighet</b><p className="muted text-[12px]">Dyslexi-läge · färgblindhet · textstorlek · hög kontrast · fokusläge</p></div><span className="ml-auto gold">›</span></a>
       <div className="card grid gap-3">
         <div className="sec-title !text-[11px]">Profil</div>
         <div><label className="lbl">Alias</label><input className="input" value={alias} maxLength={20} onChange={(e) => setAlias(e.target.value)} /></div>

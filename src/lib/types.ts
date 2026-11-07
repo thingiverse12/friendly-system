@@ -10,6 +10,12 @@ export interface Settings {
   public_profile: boolean;
   show_school: boolean;
   reminders: boolean;
+  /* Tillgänglighet */
+  dyslexia?: boolean;
+  colorblind?: "none" | "deuteranopia" | "protanopia" | "tritanopia" | "mono";
+  text_size?: "normal" | "large" | "xl";
+  high_contrast?: boolean;
+  focus_mode?: boolean;
 }
 
 export interface Profile {

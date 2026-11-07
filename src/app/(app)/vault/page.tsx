@@ -1,4 +1,5 @@
 import { TopBar } from "@/components/TopBar";
+import { SubNav, NAV_ME } from "@/components/SubNav";
 import { VaultClient } from "@/components/VaultClient";
 import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
@@ -14,6 +15,7 @@ export default async function Vault() {
   return (
     <>
       <TopBar title="Treasure Vault" back="/profile" />
+      <SubNav items={NAV_ME} />
       <div className="page">
         <div className="card felt flex items-center gap-3">
           <span className="text-3xl">💎</span>

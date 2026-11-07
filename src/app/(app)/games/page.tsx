@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
+import { SubNav, NAV_GAMES } from "@/components/SubNav";
 import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 import { MODE_LABEL } from "@/lib/xp";
@@ -25,6 +26,7 @@ export default async function Games() {
   return (
     <>
       <TopBar title="Spel" />
+      <SubNav items={NAV_GAMES} />
       <div className="page">
         {active && active.length > 0 && (
           <div className="sec !mt-2">

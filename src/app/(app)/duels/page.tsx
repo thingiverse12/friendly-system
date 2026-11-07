@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
+import { SubNav, NAV_GAMES } from "@/components/SubNav";
 import { DuelsClient } from "@/components/DuelsClient";
 import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
@@ -13,7 +14,8 @@ export default async function Duels() {
   const p = profile;
   const db = admin();
   if (!p.class_id) {
-    return (<><TopBar title="Dueller" back="/games" /><div className="page"><div className="card text-center py-8"><div className="text-4xl mb-2">⚔️</div><b>Dueller kräver en klass</b><p className="muted text-[13px] mt-1">Du kan bara utmana klasskompisar – inga främlingar.</p><Link href="/schools" className="btn-gold mt-4">Gå med i klass</Link></div></div></>);
+    return (<><TopBar title="Dueller" back="/games" />
+      <SubNav items={NAV_GAMES} /><div className="page"><div className="card text-center py-8"><div className="text-4xl mb-2">⚔️</div><b>Dueller kräver en klass</b><p className="muted text-[13px] mt-1">Du kan bara utmana klasskompisar – inga främlingar.</p><Link href="/schools" className="btn-gold mt-4">Gå med i klass</Link></div></div></>);
   }
   const [{ data: mates }, { data: duels }, subjects] = await Promise.all([
     db.from("profiles").select("id,alias,avatar,settings").eq("class_id", p.class_id).neq("id", p.id).order("alias"),
@@ -28,6 +30,7 @@ export default async function Duels() {
   return (
     <>
       <TopBar title="Dueller" back="/games" />
+      <SubNav items={NAV_GAMES} />
       <div className="page">
         <DuelsClient mates={(mates ?? []).map((m) => ({ id: m.id, alias: m.alias, avatar: m.avatar }))} subjects={subjects.map((s) => ({ id: s.id, name: s.name, icon: s.icon }))} duels={list} />
       </div>

@@ -96,7 +96,7 @@ export default async function Home() {
         </div>
 
         <div className="sec">
-          <div className="sec-title">Dagens utmaning</div>
+          <div className="sec-title">🎰 Spel <Link href="/games">Alla spel →</Link></div>
           <Link href="/games/daily" className="card purple interactive mt-3">
             {!daily && <span className="ribbon">NY</span>}
             <div className="text-[10px] tracking-[.2em] font-extrabold text-[#c4b5fd]">{plan.subject.name.toUpperCase()} · BLANDAD NIVÅ</div>
@@ -108,8 +108,7 @@ export default async function Home() {
           </Link>
         </div>
 
-        <div className="sec">
-          <div className="sec-title">Spel <Link href="/games">Visa alla</Link></div>
+        <div>
           <div className="hrow">
             {GAMES.map((g) => (
               <Link key={g.href} href={g.href} className="gcard" style={{ ["--g" as string]: g.g }}>
@@ -122,7 +121,7 @@ export default async function Home() {
         </div>
 
         <div className="sec">
-          <div className="sec-title">Fortsätt lära</div>
+          <div className="sec-title">📚 Lär <Link href="/learn">Alla ämnen →</Link></div>
           {cont ? (
             <Link href={`/learn/lesson/${cont.lessonId}`} className="card interactive mt-3 flex items-center gap-3">
               <div className="w-11 h-11 rounded-xl grid place-items-center text-xl bg-gradient-to-br from-blue to-[#1e3a8a]">{cont.subjectIcon}</div>
@@ -141,7 +140,7 @@ export default async function Home() {
         </div>
 
         <div className="sec">
-          <div className="sec-title">Klassmatch · vecka {isoWeek()}</div>
+          <div className="sec-title">🏫 Klass · vecka {isoWeek()} <Link href="/schools">Min klass →</Link></div>
           {match ? (
             <Link href="/rankings" className="card interactive mt-3">
               <div className="flex items-center gap-3">

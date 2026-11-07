@@ -1,4 +1,5 @@
 import { TopBar } from "@/components/TopBar";
+import { SubNav, NAV_ME } from "@/components/SubNav";
 import { SettingsClient } from "@/components/SettingsClient";
 import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
@@ -15,6 +16,7 @@ export default async function Settings() {
   return (
     <>
       <TopBar title="Inställningar" back="/profile" />
+      <SubNav items={NAV_ME} />
       <div className="page">
         <SettingsClient profile={{ alias: p.alias, avatar: p.avatar, theme: p.theme, role: p.role, settings: p.settings }} avatars={[...new Set(avatars)]} themes={[...new Set(themes)]} email={user!.email ?? ""} />
       </div>

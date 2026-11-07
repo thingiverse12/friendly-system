@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
+import { SubNav, NAV_CLASS } from "@/components/SubNav";
 import { requireProfile } from "@/lib/auth";
 import { admin } from "@/lib/supabase/admin";
 import { getSubjects } from "@/lib/data";
@@ -56,6 +57,7 @@ export default async function Rankings({ searchParams }: { searchParams: Promise
   return (
     <>
       <TopBar title="Topplista" />
+      <SubNav items={NAV_CLASS} />
       <div className="page">
         <div className="seg">
           {TABS.map(([k, l]) => <Link key={k} href={`/rankings?tab=${k}`} className={`flex-1 text-center py-2 rounded-[9px] text-[12px] font-bold ${tab === k ? "bg-gold/15 text-gold" : "text-muted"}`}>{l}</Link>)}

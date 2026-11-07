@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
+import { SubNav, NAV_LEARN } from "@/components/SubNav";
 import { MaterialUpload } from "@/components/MaterialUpload";
 import { requireProfile } from "@/lib/auth";
 import { getSubjects } from "@/lib/data";
@@ -16,6 +17,7 @@ export default async function Materials() {
   return (
     <>
       <TopBar title="Eget material" back="/learn" />
+      <SubNav items={NAV_LEARN} />
       <div className="page">
         {!ai ? (
           <div className="card mb-4 text-[12px] border-gold/30">

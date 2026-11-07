@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TopBar } from "@/components/TopBar";
+import { SubNav, NAV_LEARN } from "@/components/SubNav";
 import { requireProfile } from "@/lib/auth";
 import { getSubjects } from "@/lib/data";
 import { admin } from "@/lib/supabase/admin";
@@ -30,6 +31,7 @@ export default async function Learn() {
   return (
     <>
       <TopBar title="Lär" />
+      <SubNav items={NAV_LEARN} />
       <div className="page">
         <Link href="/learn/materials" className="card purple interactive">
           <div className="flex items-center gap-3">
