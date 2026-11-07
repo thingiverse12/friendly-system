@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 import { createClient } from "./supabase/server";
@@ -10,18 +11,19 @@ export class HttpError extends Error {
   }
 }
 
-export async function getUser() {
+/** Deduped per request (layout + page both ask) – one auth roundtrip per render instead of two. */
+export const getUser = cache(async () => {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   return user;
-}
+});
 
-export async function getProfile(userId: string): Promise<Profile | null> {
+export const getProfile = cache(async (userId: string): Promise<Profile | null> => {
   const { data } = await admin().from("profiles").select("*").eq("id", userId).maybeSingle();
   return (data as Profile | null) ?? null;
-}
+});
 
 /** For server components: user + profile (profile may be null before onboarding). */
 export async function getSession() {
@@ -49,9 +51,10 @@ export async function requireAdminPage() {
 }
 
 /** For route handlers: throws HttpError(401/403) unless signed in with a profile. */
-export async function requireUser(opts: { admin?: boolean; allowNoProfile?: boolean } = {}) {
+export async function requireUser(opts: { admin?: boolean; allowNoProfile?: boolean; skipProfile?: boolean } = {}) {
   const user = await getUser();
   if (!user) throw new HttpError(401, "Inte inloggad");
+  if (opts.skipProfile && !opts.admin) return { user, profile: null as unknown as Profile };
   const profile = await getProfile(user.id);
   if (!profile && !opts.allowNoProfile) throw new HttpError(403, "Profil saknas");
   if (opts.admin && profile?.role !== "admin") throw new HttpError(403, "Kräver adminbehörighet");
@@ -86,15 +89,13 @@ export async function logSecurity(userId: string | null, kind: string, severity:
 /** Simple DB-backed rate limit: max `limit` events of `kind` per user in `windowSec`. */
 export async function rateLimit(userId: string, kind: string, limit: number, windowSec: number) {
   const since = new Date(Date.now() - windowSec * 1000).toISOString();
-  const { count } = await admin()
-    .from("security_events")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .eq("kind", `rl:${kind}`)
-    .gte("created_at", since);
+  // Count and insert in parallel (one roundtrip instead of two); the window check is still strict.
+  const [{ count }] = await Promise.all([
+    admin().from("security_events").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("kind", `rl:${kind}`).gte("created_at", since),
+    admin().from("security_events").insert({ user_id: userId, kind: `rl:${kind}`, severity: "info" }),
+  ]);
   if ((count ?? 0) >= limit) {
     await logSecurity(userId, "rate_limited", "warning", { kind, limit, windowSec });
     throw new HttpError(429, "För många förfrågningar – vänta en stund.");
   }
-  await admin().from("security_events").insert({ user_id: userId, kind: `rl:${kind}`, severity: "info" });
 }

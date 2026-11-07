@@ -259,13 +259,11 @@ export async function createSession(
 
 export async function loadSession(sessionId: string, userId: string) {
   const db = admin();
-  const { data: session } = await db.from("game_sessions").select("*").eq("id", sessionId).eq("user_id", userId).maybeSingle();
+  const [{ data: session }, { data: items }] = await Promise.all([
+    db.from("game_sessions").select("*").eq("id", sessionId).eq("user_id", userId).maybeSingle(),
+    db.from("session_items").select("*, questions(id,subject_id,chapter_id,difficulty,qtype,prompt,options,answer,explanation,source)").eq("session_id", sessionId).order("idx"),
+  ]);
   if (!session) throw new HttpError(404, "Rundan finns inte");
-  const { data: items } = await db
-    .from("session_items")
-    .select("*, questions(id,subject_id,chapter_id,difficulty,qtype,prompt,options,answer,explanation,source)")
-    .eq("session_id", sessionId)
-    .order("idx");
   return { session: session as SessionRow, items: (items ?? []) as ItemRow[] };
 }
 
@@ -300,7 +298,7 @@ function handTotal(hand: number[]) {
 function publicMeta(s: SessionRow) {
   const m = s.meta ?? {};
   const out: Record<string, unknown> = {};
-  for (const k of ["hand", "wheel", "reels", "deadline", "stakes", "bonus", "bonus_reason", "subject_name", "label", "flags", "duel_id"]) if (k in m) out[k] = m[k];
+  for (const k of ["hand", "wheel", "reels", "deadline", "stakes", "bonus", "bonus_reason", "subject_name", "label", "flags", "duel_id", "combo", "max_combo", "record"]) if (k in m) out[k] = m[k];
   if (Array.isArray(m.hand)) out.hand_total = handTotal(m.hand as number[]);
   return out;
 }
@@ -419,34 +417,50 @@ export async function answerItem(sessionId: string, userId: string, idx: number,
   let scoreDelta = correct ? (q.difficulty === "easy" ? 1 : q.difficulty === "medium" ? 2 : q.difficulty === "hard" ? 3 : 4) : 0;
   if (session.mode === "highstakes" && correct) scoreDelta = (idx + 1) * 10;
 
-  await db.from("session_items").update({ answered_at: now.toISOString(), correct, xp, response: response ?? null }).eq("id", current.id);
   current.answered_at = now.toISOString();
   current.correct = correct;
   current.xp = xp;
   current.response = response;
 
-  const before = levelForXp((await db.from("profiles").select("xp").eq("id", userId).single()).data?.xp ?? 0);
-  const prof = await awardXp(userId, xp, coins, `${session.mode}:${correct ? "correct" : "wrong"}`, sessionId);
-  const levelUp = prof && prof.level > before ? prof.level : null;
+  // Combo (consecutive correct answers in this round). Cosmetic + small coin bonus at milestones – never extra XP.
+  const combo = correct ? Number(session.meta.combo ?? 0) + 1 : 0;
+  session.meta.combo = combo;
+  session.meta.max_combo = Math.max(Number(session.meta.max_combo ?? 0), combo);
+  const comboCoins = combo === 5 ? 5 : combo === 10 ? 15 : 0;
 
   session.correct += correct ? 1 : 0;
   session.score += scoreDelta;
   session.xp_awarded += xp;
-  session.coins_awarded += coins;
-  await db.from("game_sessions").update({ correct: session.correct, score: session.score, xp_awarded: session.xp_awarded, coins_awarded: session.coins_awarded, meta: session.meta }).eq("id", sessionId);
+  session.coins_awarded += coins + comboCoins;
 
   const remaining = items.filter((i) => !i.answered_at).length;
+  const willFinish = remaining === 0 || !!(blackjack && (blackjack.bust || blackjack.blackjack));
+  const nextItem = willFinish ? null : items.find((i) => !i.answered_at) ?? null;
+  if (nextItem && !nextItem.served_at) nextItem.served_at = now.toISOString();
+
+  // One parallel batch instead of a chain of sequential roundtrips.
+  const [prof] = await Promise.all([
+    awardXp(userId, xp, coins + comboCoins, `${session.mode}:${correct ? "correct" : "wrong"}${comboCoins ? "+combo" : ""}`, sessionId),
+    db.from("session_items").update({ answered_at: current.answered_at, correct, xp, response: response ?? null }).eq("id", current.id),
+    nextItem ? db.from("session_items").update({ served_at: nextItem.served_at }).eq("id", nextItem.id) : Promise.resolve(null),
+    willFinish ? Promise.resolve(null) : db.from("game_sessions").update({ correct: session.correct, score: session.score, xp_awarded: session.xp_awarded, coins_awarded: session.coins_awarded, meta: session.meta }).eq("id", sessionId),
+  ]);
+  const levelUp = prof && levelForXp(Math.max(0, prof.xp - xp)) < prof.level ? prof.level : null;
+
   let finished = false;
-  if (remaining === 0 || (blackjack && (blackjack.bust || blackjack.blackjack))) {
+  if (willFinish) {
     await finishSession(session, items, userId, blackjack?.bust ? "bust" : "finished");
     finished = true;
   }
-  const achievements = await checkAchievements(userId, { mode: session.mode, blackjack21: !!blackjack?.blackjack });
-  const view = await serve(sessionId, userId, finished);
+  // Achievements are only re-evaluated when something relevant happened (saves 3–6 queries per answer).
+  const achievements = finished || levelUp || blackjack?.blackjack ? await checkAchievements(userId, { mode: session.mode, blackjack21: !!blackjack?.blackjack }) : [];
+  const view = sessionView(session, items, finished);
   const showExplanation = !(session.competitive && !finished);
   const servedOpts = servedOptions(q, current.option_order);
   return {
-    correct, xp, coins, finished, session: view, flags, level_up: levelUp, achievements, blackjack,
+    correct, xp, coins: coins + comboCoins, finished, session: view, flags, level_up: levelUp, achievements, blackjack,
+    combo, combo_bonus: comboCoins,
+    profile: prof ? { xp: prof.xp, coins: prof.coins, level: prof.level } : undefined,
     explanation: showExplanation ? q.explanation : null,
     correct_answer: showExplanation ? displayAnswer(q.qtype, q.answer, q.qtype === "mcq" || q.qtype === "match" ? q.options : servedOpts, current.option_order) : null,
   };
@@ -471,13 +485,20 @@ export async function finishSession(session: SessionRow, items: ItemRow[], userI
     if (session.mode === "lesson" && answered >= session.total && ratio >= 0.8) { bonus = 20; reason = "Lektionstest klarat"; }
   }
   const coins = Math.ceil(bonus * (await getConfig()).coinsPerXp);
-  if (bonus > 0) await awardXp(userId, bonus, coins, `${session.mode}:bonus`, session.id);
+  let record = false;
+  const [, best] = await Promise.all([
+    bonus > 0 ? awardXp(userId, bonus, coins, `${session.mode}:bonus`, session.id) : Promise.resolve(null),
+    status === "finished" && answered >= 3 && session.mode !== "lesson"
+      ? db.from("game_sessions").select("correct").eq("user_id", userId).eq("mode", session.mode).neq("id", session.id).neq("status", "active").order("correct", { ascending: false }).limit(1).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  if (status === "finished" && answered >= 3 && session.mode !== "lesson") record = session.correct > Number(best?.data?.correct ?? -1) && session.correct >= 3;
   session.status = status;
   session.finished_at = new Date().toISOString();
   session.xp_awarded += bonus;
   session.coins_awarded += coins;
-  session.meta = { ...session.meta, bonus, bonus_reason: reason };
-  await db.from("game_sessions").update({ status, finished_at: session.finished_at, xp_awarded: session.xp_awarded, coins_awarded: session.coins_awarded, meta: session.meta }).eq("id", session.id);
+  session.meta = { ...session.meta, bonus, bonus_reason: reason, record };
+  await db.from("game_sessions").update({ status, finished_at: session.finished_at, correct: session.correct, score: session.score, xp_awarded: session.xp_awarded, coins_awarded: session.coins_awarded, meta: session.meta }).eq("id", session.id);
   if (session.mode === "duel" && session.meta.duel_id) await settleDuel(session.meta.duel_id as string);
   return session;
 }
@@ -487,13 +508,13 @@ export async function standBlackjack(sessionId: string, userId: string) {
   if (session.mode !== "blackjack" || session.status !== "active") throw new HttpError(409, "Kan inte stanna nu");
   await finishSession(session, items, userId, "finished", { stand: true });
   await checkAchievements(userId, { mode: "blackjack", blackjack21: handTotal((session.meta.hand as number[]) ?? []) === 21 });
-  return serve(sessionId, userId, true);
+  return sessionView(session, items, true);
 }
 
 export async function abandonSession(sessionId: string, userId: string) {
   const { session, items } = await loadSession(sessionId, userId);
   if (session.status === "active") await finishSession(session, items, userId, items.some((i) => i.answered_at) ? "finished" : "abandoned");
-  return serve(sessionId, userId, true);
+  return sessionView(session, items, true);
 }
 
 // ---------- duels ----------
@@ -516,42 +537,38 @@ async function settleDuel(duelId: string) {
 // ---------- achievements ----------
 export async function checkAchievements(userId: string, ctx: { mode?: GameMode; blackjack21?: boolean; lesson?: boolean; classJoined?: boolean } = {}) {
   const db = admin();
-  const { data: have } = await db.from("user_achievements").select("achievement_id").eq("user_id", userId);
+  const [{ data: have }, { data: prof }, { data: ks }, { count: subjCount }, { data: streak }, { count: games }, { count: dailies }] = await Promise.all([
+    db.from("user_achievements").select("achievement_id").eq("user_id", userId),
+    db.from("profiles").select("xp,class_id").eq("id", userId).single(),
+    db.from("knowledge_state").select("subject_id,difficulty,correct").eq("user_id", userId),
+    db.from("subjects").select("id", { count: "exact", head: true }).eq("active", true),
+    db.rpc("activity_streak", { p_user: userId }),
+    db.from("game_sessions").select("id", { count: "exact", head: true }).eq("user_id", userId).neq("status", "active"),
+    db.from("game_sessions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("mode", "daily").eq("status", "finished"),
+  ]);
   const owned = new Set((have ?? []).map((h) => h.achievement_id));
   const earn: string[] = [];
   const need = (id: string) => !owned.has(id);
-  const { data: prof } = await db.from("profiles").select("xp,class_id").eq("id", userId).single();
   const level = levelForXp(prof?.xp ?? 0);
   if (need("level_5") && level >= 5) earn.push("level_5");
   if (need("level_10") && level >= 10) earn.push("level_10");
   if (need("class_joined") && (prof?.class_id || ctx.classJoined)) earn.push("class_joined");
   if (need("blackjack_21") && ctx.blackjack21) earn.push("blackjack_21");
-  if (ctx.mode && need("first_game")) {
-    const { count } = await db.from("game_sessions").select("id", { count: "exact", head: true }).eq("user_id", userId).neq("status", "active");
-    if ((count ?? 0) >= 1) earn.push("first_game");
-  }
+  if (ctx.mode && need("first_game") && (games ?? 0) >= 1) earn.push("first_game");
   if (ctx.lesson && need("first_lesson")) earn.push("first_lesson");
-  if (need("correct_100") || need("expert_10") || need("all_subjects")) {
-    const { data: ks } = await db.from("knowledge_state").select("subject_id,difficulty,correct").eq("user_id", userId);
-    const total = (ks ?? []).reduce((a, r) => a + r.correct, 0);
-    if (need("correct_100") && total >= 100) earn.push("correct_100");
-    if (need("expert_10") && (ks ?? []).filter((r) => r.difficulty === "expert").reduce((a, r) => a + r.correct, 0) >= 10) earn.push("expert_10");
-    const { count: subjCount } = await db.from("subjects").select("id", { count: "exact", head: true }).eq("active", true);
-    if (need("all_subjects") && new Set((ks ?? []).filter((r) => r.correct > 0).map((r) => r.subject_id)).size >= (subjCount ?? 99)) earn.push("all_subjects");
-  }
-  if (need("streak_3") || need("streak_7")) {
-    const { data: streak } = await db.rpc("activity_streak", { p_user: userId });
-    if (need("streak_3") && Number(streak) >= 3) earn.push("streak_3");
-    if (need("streak_7") && Number(streak) >= 7) earn.push("streak_7");
-  }
-  if (need("daily_5")) {
-    const { count } = await db.from("game_sessions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("mode", "daily").eq("status", "finished");
-    if ((count ?? 0) >= 5) earn.push("daily_5");
-  }
+  const total = (ks ?? []).reduce((a, r) => a + r.correct, 0);
+  if (need("correct_100") && total >= 100) earn.push("correct_100");
+  if (need("expert_10") && (ks ?? []).filter((r) => r.difficulty === "expert").reduce((a, r) => a + r.correct, 0) >= 10) earn.push("expert_10");
+  if (need("all_subjects") && new Set((ks ?? []).filter((r) => r.correct > 0).map((r) => r.subject_id)).size >= (subjCount ?? 99)) earn.push("all_subjects");
+  if (need("streak_3") && Number(streak) >= 3) earn.push("streak_3");
+  if (need("streak_7") && Number(streak) >= 7) earn.push("streak_7");
+  if (need("daily_5") && (dailies ?? 0) >= 5) earn.push("daily_5");
   if (!earn.length) return [];
-  await db.from("user_achievements").insert(earn.map((id) => ({ user_id: userId, achievement_id: id })));
-  await awardXp(userId, earn.length * 25, earn.length * 10, "achievement", null);
-  const { data: rows } = await db.from("achievements").select("id,name,icon").in("id", earn);
+  const [, , { data: rows }] = await Promise.all([
+    db.from("user_achievements").insert(earn.map((id) => ({ user_id: userId, achievement_id: id }))),
+    awardXp(userId, earn.length * 25, earn.length * 10, "achievement", null),
+    db.from("achievements").select("id,name,icon").in("id", earn),
+  ]);
   return rows ?? [];
 }
 

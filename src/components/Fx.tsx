@@ -1,7 +1,7 @@
 "use client";
 import { createContext, useCallback, useContext, useMemo, useRef } from "react";
 
-type FxKind = "correct" | "wrong" | "click" | "win" | "coin" | "spin";
+type FxKind = "correct" | "wrong" | "click" | "win" | "coin" | "spin" | "combo" | "levelup";
 const Ctx = createContext<{ play: (k: FxKind) => void; sound: boolean; haptics: boolean }>({ play: () => {}, sound: true, haptics: true });
 
 /** Tiny WebAudio synth – no audio files needed, respects the user's sound/haptics settings. */
@@ -30,6 +30,8 @@ export function FxProvider({ children, sound, haptics }: { children: React.React
         else if (k === "wrong") navigator.vibrate([40, 30, 40]);
         else if (k === "win") navigator.vibrate([30, 40, 30, 40, 80]);
         else if (k === "click") navigator.vibrate(8);
+        else if (k === "combo") navigator.vibrate([15, 20, 15]);
+        else if (k === "levelup") navigator.vibrate([40, 30, 40, 30, 120]);
       }
       if (!sound) return;
       switch (k) {
@@ -39,6 +41,8 @@ export function FxProvider({ children, sound, haptics }: { children: React.React
         case "coin": tone(1200, 0.08, "triangle"); tone(1600, 0.12, "triangle", 0.07); break;
         case "spin": for (let i = 0; i < 8; i++) tone(400 + i * 40, 0.05, "square", i * 0.06, 0.025); break;
         case "win": [523, 659, 784, 1046].forEach((f, i) => tone(f, 0.22, "sine", i * 0.11)); break;
+        case "combo": [784, 988, 1175].forEach((f, i) => tone(f, 0.1, "triangle", i * 0.06, 0.06)); break;
+        case "levelup": [392, 523, 659, 784, 1046, 1318].forEach((f, i) => tone(f, 0.3, "sine", i * 0.09, 0.09)); tone(1568, 0.6, "triangle", 0.55, 0.05); break;
       }
     },
     [sound, haptics, tone]

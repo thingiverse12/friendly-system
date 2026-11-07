@@ -88,4 +88,7 @@ export interface AnswerResult {
   level_up?: number | null;
   achievements?: { id: string; name: string; icon: string }[];
   blackjack?: { card: number | null; hand: number[]; total: number; bust: boolean; blackjack: boolean };
+  combo?: number;
+  combo_bonus?: number;
+  profile?: { xp: number; coins: number; level: number };
 }

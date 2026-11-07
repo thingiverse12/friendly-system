@@ -12,13 +12,18 @@ export async function getStreak(userId: string) {
   return Number(data ?? 0);
 }
 
+export const DAILY_GOAL_XP = 100;
+
+/** Active days (for the streak dots) + XP earned today (for the daily goal ring) – one query. */
 export async function getActiveDays(userId: string, days = 7) {
   const since = new Date(Date.now() - days * 86400000).toISOString();
-  const { data } = await admin().from("xp_events").select("created_at").eq("user_id", userId).gte("created_at", since);
+  const { data } = await admin().from("xp_events").select("created_at,amount").eq("user_id", userId).gte("created_at", since);
+  const today = todayKey();
   const set = new Set((data ?? []).map((r) => todayKey(new Date(r.created_at))));
   const out: boolean[] = [];
   for (let i = days - 1; i >= 0; i--) out.push(set.has(todayKey(new Date(Date.now() - i * 86400000))));
-  return out;
+  const todayXp = (data ?? []).filter((r) => todayKey(new Date(r.created_at)) === today).reduce((a, r) => a + Math.max(0, Number(r.amount) || 0), 0);
+  return { days: out, todayXp };
 }
 
 export async function getDailyStatus(userId: string) {

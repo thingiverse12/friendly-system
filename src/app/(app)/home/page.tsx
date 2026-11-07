@@ -3,7 +3,7 @@ import { requireProfile } from "@/lib/auth";
 import { Header } from "@/components/TopBar";
 import { Avatar } from "@/components/Avatar";
 import { recommend } from "@/lib/engine";
-import { getActiveDays, getClassMatch, getContinueLearning, getDailyStatus, getStreak, getSubjects } from "@/lib/data";
+import { DAILY_GOAL_XP, getActiveDays, getClassMatch, getContinueLearning, getDailyStatus, getStreak, getSubjects } from "@/lib/data";
 import { DIFF_LABEL, levelProgress, todayKey } from "@/lib/xp";
 import { dailyPlan } from "@/lib/engine";
 import { admin } from "@/lib/supabase/admin";
@@ -21,7 +21,7 @@ const GAMES = [
 export default async function Home() {
   const { profile } = await requireProfile();
   const p = profile;
-  const [rec, streak, days, daily, cont, match, plan, school, cls, subjects] = await Promise.all([
+  const [rec, streak, act, daily, cont, match, plan, school, cls, subjects] = await Promise.all([
     recommend(p.id),
     getStreak(p.id),
     getActiveDays(p.id),
@@ -34,6 +34,9 @@ export default async function Home() {
     getSubjects(),
   ]);
   const lp = levelProgress(p.xp);
+  const days = act.days;
+  const goalPct = Math.min(100, Math.round((act.todayXp / DAILY_GOAL_XP) * 100));
+  const goalDone = act.todayXp >= DAILY_GOAL_XP;
   const recSubject = subjects.find((s) => s.id === rec.subjectId);
   const formatLabel = rec.formats ? "Flerval" : "Blandat format";
 
@@ -82,6 +85,14 @@ export default async function Home() {
             </div>
             <div className="dots ml-auto">{days.map((on, i) => <i key={i} className={on ? "on" : ""} />)}</div>
           </div>
+          <Link href={goalDone ? "/games" : `/games/quick?subject=${rec.subjectId}&difficulty=${rec.difficulty}`} className="card interactive mt-2 flex items-center gap-3.5">
+            <div className="ring" style={{ ["--pct" as string]: `${goalPct}%` }}><i>{goalDone ? "✓" : `${goalPct}%`}</i></div>
+            <div className="flex-1">
+              <b className="text-[14px]">{goalDone ? "Dagens mål klart! 🎯" : "Dagens mål"}</b>
+              <p className="muted text-[12px]">{goalDone ? `${act.todayXp} XP idag – allt extra är ren bonus.` : `${act.todayXp} / ${DAILY_GOAL_XP} XP · ${DAILY_GOAL_XP - act.todayXp} kvar – ca ${Math.max(1, Math.ceil((DAILY_GOAL_XP - act.todayXp) / 25))} rätt svar på medel`}</p>
+            </div>
+            <span className="gold">›</span>
+          </Link>
         </div>
 
         <div className="sec">

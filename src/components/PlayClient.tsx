@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useFx } from "./Fx";
-import { DIFF_LABEL, MODE_LABEL, QTYPE_LABEL } from "@/lib/xp";
+import { DIFF_LABEL, MODE_LABEL, QTYPE_LABEL, levelProgress } from "@/lib/xp";
 import type { AnswerResult, PublicQuestion, SessionView } from "@/lib/types";
 
 const LETTERS = ["A", "B", "C", "D", "E", "F"];
@@ -20,6 +20,14 @@ export function PlayClient({ id }: { id: string }) {
   const [now, setNow] = useState(Date.now());
   const [aiText, setAiText] = useState<string | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
+  const [prof, setProf] = useState<{ xp: number; coins: number; level: number } | null>(null);
+  const [floats, setFloats] = useState<{ id: number; text: string; kind: "xp" | "coin" | "combo" }[]>([]);
+  const floatId = useRef(0);
+  const pushFloat = useCallback((text: string, kind: "xp" | "coin" | "combo" = "xp") => {
+    const id = ++floatId.current;
+    setFloats((f) => [...f, { id, text, kind }]);
+    setTimeout(() => setFloats((f) => f.filter((x) => x.id !== id)), 1400);
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -56,7 +64,15 @@ export function PlayClient({ id }: { id: string }) {
     try {
       const r = await api<AnswerResult>(`/api/game/${id}/answer`, { idx: s.current.idx, response });
       fx.play(r.correct ? "correct" : "wrong");
-      if (r.level_up || r.blackjack?.blackjack) setTimeout(() => fx.play("win"), 300);
+      if (r.profile) setProf(r.profile);
+      if (r.correct && r.xp > 0) pushFloat(`+${r.xp} XP`);
+      if (r.correct && (r.combo ?? 0) >= 2) {
+        setTimeout(() => pushFloat(`🔥 Combo ×${r.combo}`, "combo"), 250);
+        if ((r.combo ?? 0) === 3 || (r.combo ?? 0) === 5 || (r.combo ?? 0) === 10) setTimeout(() => fx.play("combo"), 200);
+      }
+      if (r.combo_bonus) setTimeout(() => { pushFloat(`+${r.combo_bonus} mynt · combo-bonus`, "coin"); fx.play("coin"); }, 600);
+      if (r.level_up) setTimeout(() => fx.play("levelup"), 400);
+      else if (r.blackjack?.blackjack) setTimeout(() => fx.play("win"), 300);
       setAiText(null);
       if (s.mode === "brainrush") {
         setS(r.session);
@@ -81,9 +97,13 @@ export function PlayClient({ id }: { id: string }) {
 
   async function next() {
     fx.play("click");
-    setResult(null);
     setAiText(null);
-    await load();
+    // The answer response already contains the next question – only reload if something is off.
+    if (s && (s.status !== "active" || s.current)) setResult(null);
+    else {
+      setResult(null);
+      await load();
+    }
   }
 
   async function stand() {
@@ -129,15 +149,20 @@ export function PlayClient({ id }: { id: string }) {
     return s.mode === "wheel" ? <WheelIntro s={s} onDone={() => setIntro(false)} /> : <SlotsIntro s={s} onDone={() => setIntro(false)} />;
   }
 
-  if (s.status !== "active") return <Summary s={s} onReplay={() => router.push(`/games/${s.mode === "daily" ? "" : s.mode}`)} askAi={askAi} aiText={aiText} aiBusy={aiBusy} />;
+  if (s.status !== "active") return <Summary s={s} prof={prof} onReplay={() => router.push(`/games/${s.mode === "daily" ? "" : s.mode}`)} askAi={askAi} aiText={aiText} aiBusy={aiBusy} />;
 
   const q = s.current!;
   const pct = Math.round((s.answered / s.total) * 100);
   const hand = (s.public_meta.hand as number[] | undefined) ?? [];
   const handTotal = (s.public_meta.hand_total as number | undefined) ?? 0;
+  const combo = Number(s.public_meta.combo ?? 0);
+  const lp = prof ? levelProgress(prof.xp) : null;
 
   return (
-    <div className="page pb-8">
+    <div className="page pb-8 relative">
+      <div className="floats" aria-hidden>
+        {floats.map((f) => <span key={f.id} className={`float ${f.kind}`}>{f.text}</span>)}
+      </div>
       <div className="flex items-center gap-3 pt-4">
         <button className="back" onClick={abandon} aria-label="Avsluta">✕</button>
         <div className="flex-1 min-w-0">
@@ -159,8 +184,16 @@ export function PlayClient({ id }: { id: string }) {
         {q.source === "ai" && <span className="pill p">AI-genererad · ej verifierad</span>}
         {s.mode === "highstakes" && <span className="pill r">Insats ×{q.idx + 1}</span>}
         {s.competitive && <span className="pill b">Tävling</span>}
+        {combo >= 2 && <span className={`pill combo ${combo >= 5 ? "hot" : ""}`}>🔥 ×{combo}</span>}
         <span className="pill e ml-auto">+{s.xp_awarded} XP</span>
       </div>
+      {lp && (
+        <div className="flex items-center gap-2 mt-2 text-[11px] muted">
+          <span className="serif text-gold tracking-[.1em]">NIVÅ {lp.level}</span>
+          <div className="xpbar flex-1" style={{ height: 6 }}><b style={{ width: `${lp.pct}%` }} /></div>
+          <span>{lp.toNext} XP kvar</span>
+        </div>
+      )}
 
       {s.mode === "blackjack" && (
         <div className="card felt mt-3">
@@ -379,30 +412,66 @@ function SlotsIntro({ s, onDone }: { s: SessionView; onDone: () => void }) {
   );
 }
 
-function Summary({ s, onReplay, askAi, aiText, aiBusy }: { s: SessionView; onReplay: () => void; askAi: (q: PublicQuestion | null, r: AnswerResult | null) => void; aiText: string | null; aiBusy: boolean }) {
+function Summary({ s, prof, onReplay, askAi, aiText, aiBusy }: { s: SessionView; prof: { xp: number; coins: number; level: number } | null; onReplay: () => void; askAi: (q: PublicQuestion | null, r: AnswerResult | null) => void; aiText: string | null; aiBusy: boolean }) {
   const fx = useFx();
-  useEffect(() => { if (s.correct > 0) fx.play("win"); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  const router = useRouter();
   const answered = s.answered;
   const pct = answered ? Math.round((s.correct / answered) * 100) : 0;
   const bonus = Number(s.public_meta.bonus ?? 0);
+  const record = !!s.public_meta.record;
+  const maxCombo = Number(s.public_meta.max_combo ?? 0);
+  const celebrate = record || pct >= 70;
+  useEffect(() => { if (record) fx.play("levelup"); else if (s.correct > 0) fx.play("win"); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
   const [open, setOpen] = useState<number | null>(null);
+  const [starting, setStarting] = useState(false);
+  const lp = prof ? levelProgress(prof.xp) : null;
+  const canRestart = s.mode !== "daily" && s.mode !== "lesson" && s.mode !== "duel";
+  async function oneMore() {
+    if (!canRestart) return onReplay();
+    setStarting(true);
+    fx.play("click");
+    try {
+      const r = await api<{ id: string }>("/api/game/start", { mode: s.mode, subject: s.subject_id ?? undefined, difficulty: s.difficulty ?? undefined });
+      router.replace(`/play/${r.id}`);
+      router.refresh();
+    } catch {
+      onReplay();
+    } finally {
+      setStarting(false);
+    }
+  }
+  const verdict = s.status === "bust" ? "Bust – men XP:n är din." : pct === 100 ? "Felfritt. Du äger det här." : pct >= 70 ? "Starkt! Du är på gång." : pct >= 40 ? "Bra kämpat – repetition ger XP." : "Varje fel är ett steg. Kör igen?";
   return (
-    <div className="page pt-6 pb-8">
+    <div className="page pt-6 pb-8 relative">
+      {celebrate && <Confetti />}
       <div className="card felt text-center">
-        <div className="serif text-[12px] tracking-[.2em] text-gold">{s.status === "bust" ? "BUST!" : "RUNDAN KLAR"}</div>
-        <div className="text-[44px] font-extrabold mt-2">{s.correct}/{answered}</div>
+        <div className="serif text-[12px] tracking-[.2em] text-gold">{s.status === "bust" ? "BUST!" : record ? "🏆 NYTT PERSONBÄSTA" : "RUNDAN KLAR"}</div>
+        <div className="text-[44px] font-extrabold mt-2 pop">{s.correct}/{answered}</div>
+        <p className="text-[13px] font-bold">{verdict}</p>
         <p className="muted text-[12px]">{pct} % rätt · {MODE_LABEL[s.mode]}{s.public_meta.subject_name ? ` · ${s.public_meta.subject_name as string}` : ""}</p>
         <div className="flex justify-center gap-2 mt-4 flex-wrap">
           <span className="pill g">+{s.xp_awarded} XP</span>
           <span className="pill e">+{s.coins_awarded} mynt</span>
+          {maxCombo >= 3 && <span className="pill combo">🔥 Bästa combo ×{maxCombo}</span>}
           {bonus > 0 && <span className="pill p">Bonus +{bonus} · {String(s.public_meta.bonus_reason ?? "")}</span>}
         </div>
         {s.mode === "blackjack" && <p className="text-[13px] mt-3">Hand: {((s.public_meta.hand as number[]) ?? []).map((c) => (c === 11 ? "A" : c)).join(" + ")} = <b>{String(s.public_meta.hand_total ?? 0)}</b></p>}
       </div>
+      {lp && (
+        <div className="card mt-3">
+          <div className="flex items-center justify-between text-[12px]">
+            <span className="serif text-gold tracking-[.12em]">NIVÅ {lp.level} · {lp.rank.toUpperCase()}</span>
+            <span className="muted">{lp.toNext} XP till nivå {lp.level + 1}</span>
+          </div>
+          <div className="xpbar mt-2"><b style={{ width: `${lp.pct}%` }} /></div>
+          {lp.toNext <= 60 && <p className="text-[12px] mt-2 gold font-bold">Nästan där – en runda till räcker troligen för nivå {lp.level + 1}! ⬆</p>}
+        </div>
+      )}
       <div className="flex gap-2 mt-4">
-        <button className="btn-gold flex-1" onClick={onReplay}>{s.mode === "daily" ? "FLER SPEL" : "SPELA IGEN"}</button>
+        <button className="btn-gold flex-1" onClick={oneMore} disabled={starting}>{starting ? "STARTAR…" : s.mode === "daily" ? "FLER SPEL" : "EN RUNDA TILL"}</button>
         <Link href="/home" className="btn-ghost flex-1">HEM</Link>
       </div>
+      {s.mode !== "daily" && <Link href="/games/daily" className="card interactive mt-3 flex items-center gap-3 !py-3"><span className="text-[22px]">🗓️</span><span className="text-[12px]"><b>Dagens utmaning</b><br /><span className="muted">Samma frågor för alla · +100 XP vid ≥70 %</span></span><span className="ml-auto gold">›</span></Link>}
       <div className="sec">
         <div className="sec-title">Genomgång</div>
         <div className="grid gap-2 mt-3">
@@ -431,6 +500,19 @@ function Summary({ s, onReplay, askAi, aiText, aiBusy }: { s: SessionView; onRep
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+
+function Confetti() {
+  const pieces = Array.from({ length: 28 }, (_, i) => i);
+  const colors = ["var(--gold)", "var(--accent)", "#f7e2a1", "#8b5cf6", "#60a5fa", "#fff"];
+  return (
+    <div className="confetti" aria-hidden>
+      {pieces.map((i) => (
+        <i key={i} style={{ left: `${(i * 37) % 100}%`, background: colors[i % colors.length], animationDelay: `${(i % 7) * 0.12}s`, animationDuration: `${1.6 + (i % 5) * 0.25}s`, transform: `rotate(${(i * 53) % 360}deg)` }} />
+      ))}
     </div>
   );
 }
